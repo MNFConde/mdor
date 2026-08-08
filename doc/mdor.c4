@@ -25,10 +25,10 @@ model {
     description 'mdBook 渲染后的 HTML 站点'
   }
   github = external-system 'GitHub' {
-    description '仓库源文件 / commit SHA'
+    description '上游仓库 git 历史 / commit SHA'
   }
   fs = external-system '设备本地存储' {
-    description 'library.json / progress.json / 版本快照目录'
+    description 'library.json / progress.json / books/<id>/（gix 仓库 .git + 工作区 + 仓库外 .mdor/ 元数据）'
   }
 
   mdor = system 'mdor Android 应用 (Dioxus + WebView)' {
@@ -42,7 +42,7 @@ model {
     }
     updateService = component 'UpdateService' {
       technology 'Rust 服务'
-      description '更新流程编排：对比→快照→迁移'
+      description '更新流程编排：对比→拉取/提交→打版本 tag→位置映射'
     }
     positionService = component 'PositionService' {
       technology 'Rust 服务'
@@ -54,41 +54,45 @@ model {
     }
     staticSite = component 'StaticSiteSource' {
       technology 'Rust 插件'
-      description '镜像托管 HTML 站点'
+      description '镜像托管 HTML 站点（自建 commit 链）'
     }
     githubSource = component 'GitHubSource' {
       technology 'Rust 插件'
-      description '拉取 markdown 源并渲染'
+      description 'git clone/fetch 上游仓库并渲染 markdown'
+    }
+    pathMigrator = component 'PathMigrator' {
+      technology 'Rust 插件'
+      description 'v1 更新默认：按章节路径映射位置'
     }
     snapshotMigrator = component 'SnapshotMigrator' {
       technology 'Rust 插件'
-      description '位置绑定版本，快照直连迁移'
+      description '方案 D：位置绑定 commit 快照直连（M5 开放）'
     }
     versioning = component 'Versioning' {
       technology 'Rust 核心'
-      description '版本标识、快照生成、current 指针'
+      description 'commit / 版本 tag 生成、HEAD/ref 维护、对象库去重（gix）'
     }
     bookStore = component 'BookStore' {
       technology 'Rust 核心'
-      description '书籍文件落地、元数据读写'
+      description 'git 仓库落地、工作区 checkout、元数据读写'
     }
 
     user -> bookManager '浏览/阅读/操作'
     bookManager -> sourceRegistry 'add_book(url): 探测'
     sourceRegistry -> staticSite '静态站点适配'
     sourceRegistry -> githubSource 'GitHub 适配'
-    bookManager -> versioning '生成新版本'
+    bookManager -> versioning '初始化仓库 / 打首个版本 tag'
     bookManager -> bookStore '读写书籍元数据'
-    updateService -> versioning 'check_update / 快照'
-    updateService -> snapshotMigrator 'migrate(from,to,pos)'
-    positionService -> snapshotMigrator '查询迁移结果'
+    updateService -> versioning 'check_update / 拉取或提交'
+    updateService -> pathMigrator '更新后按路径映射位置'
+    positionService -> snapshotMigrator '版本切换/迁移 (M5)'
     positionService -> bookStore '读/写 progress.json'
-    versioning -> bookStore '写版本快照'
+    versioning -> bookStore '提交 commit / 打版本 tag / 更新 HEAD'
     renderService -> bookStore '读取章节内容'
   }
 
   staticSite -> remoteHtml 'HTTP 镜像 (reqwest)'
-  githubSource -> github 'API / raw 拉取'
+  githubSource -> github 'git clone/fetch 上游仓库'
   bookStore -> fs '文件读写'
 }
 
