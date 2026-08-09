@@ -45,6 +45,7 @@
 3. **离线优先**：所有内容必须先落盘才可阅读，网络仅用于获取与更新。
 4. **版本感知**：书籍内容按 git commit 管理，每次抓取/更新打一个版本 tag（指向 commit sha），版本关系由 commit 图承载；阅读位置绑定具体版本，可回放、可迁移。
 5. **位置迁移可插拔**：版本间的阅读位置跳转策略做成插件；v1 默认实现为"路径映射"（更新追最新），后续可扩展其他策略（含多版本快照直连）。
+6. **编排收敛（薄门面 + 按需命令化）**：UI 层只依赖一个应用门面 `AppService`，单次用户操作 = 单次门面调用，业务编排不泄漏进 UI；长流程（网络 + 多步 + 可中断 + 需进度/串行）封装为命令对象，经命令队列串行执行。**不引入全局中介者**——架构为分层树状，`UpdateService`/`PositionService` 本就是各自流程的中介者，再加全局 hub 会退化为上帝对象（见 §6.9）。
 
 ---
 
@@ -58,6 +59,7 @@
 │   书架 LibraryUI · 添加 AddBookUI · 阅读 ReaderUI · 版本历史 │
 ├──────────────────────────────────────────────────────────────┤
 │                      服务层 (Rust)                           │
+│   AppService（薄门面，UI 唯一入口） · 命令队列串行执行       │
 │   BookManager · SourceRegistry · UpdateService               │
 │   PositionService · RenderService                            │
 ├──────────────────────────────────────────────────────────────┤
@@ -77,6 +79,7 @@
 graph TB
   User(("用户"))
   subgraph Mdor["mdor Android 应用 (Dioxus + WebView)"]
+    Mdor.AppService["AppService (薄门面，UI 唯一入口)"]
     Mdor.BookManager["BookManager"]
     Mdor.SourceRegistry["SourceRegistry"]
     Mdor.UpdateService["UpdateService"]
@@ -93,8 +96,12 @@ graph TB
   Github["GitHub"]
   Fs[("设备本地存储")]
 
-  User -. "浏览/阅读/操作" .-> Mdor.BookManager
-  Mdor.BookManager -. "add_book(url): 探测" .-> Mdor.SourceRegistry
+  User -. "浏览/阅读/操作" .-> Mdor.AppService
+  Mdor.AppService -. "add_book / remove_book" .-> Mdor.BookManager
+  Mdor.AppService -. "add_book: detect(url)" .-> Mdor.SourceRegistry
+  Mdor.AppService -. "update_book: UpdateBookCommand 入队" .-> Mdor.UpdateService
+  Mdor.AppService -. "open_reading: get_position / save_progress" .-> Mdor.PositionService
+  Mdor.AppService -. "open_reading: render_chapter" .-> Mdor.RenderService
   Mdor.SourceRegistry -. "静态站点适配" .-> Mdor.StaticSite
   Mdor.SourceRegistry -. "GitHub 适配" .-> Mdor.GithubSource
   Mdor.BookManager -. "初始化仓库 / 打首个版本 tag" .-> Mdor.Versioning
@@ -162,6 +169,7 @@ sequenceDiagram
     autonumber
     actor U as 用户
     participant ADD as AddBookUI
+    participant APP as AppService（薄门面）
     participant REG as SourceRegistry
     participant BM as BookManager
     participant AD as StaticSiteSource / GitHubSource
@@ -170,9 +178,10 @@ sequenceDiagram
     participant BS as BookStore
 
     U->>ADD: 输入书籍 URL
-    ADD->>REG: detect(url) 遍历已注册适配器
-    REG-->>ADD: 返回匹配的 SourceAdapter
-    ADD->>BM: add_book(url, kind)
+    ADD->>APP: add_book(url)（单次门面调用，§6.9）
+    APP->>REG: detect(url) 遍历已注册适配器
+    REG-->>APP: 返回匹配的 SourceAdapter
+    APP->>BM: add_book(url, kind)
     BM->>AD: fetch(url, 暂存目录)
     AD->>AD: 下载内容（镜像 HTML / clone 上游仓库）
     AD->>RS: 构建 TOC / 抽取章节内容
@@ -183,7 +192,8 @@ sequenceDiagram
     VER->>VER: 打首个版本 tag refs/mdor/versions/v1
     VER->>BS: 对象库落盘（内容寻址去重），更新 HEAD
     BM->>BS: 写入 library.json（current_version = commit sha）
-    BM-->>ADD: 添加成功
+    BM-->>APP: 添加成功
+    APP-->>ADD: 添加成功
     ADD-->>U: 书架出现新书籍
 ```
 
@@ -244,7 +254,7 @@ pub struct MigratedPosition {
 注册表 + 工厂：持有 `Vec<Box<dyn SourceAdapter>>`，`detect(url)` 依次询问。新增来源 = 新增一个实现 `SourceAdapter` 的插件模块并注册，核心与 UI 零改动。
 
 ### 6.3 UpdateService
-更新编排（见 §7）。
+更新编排：更新流程封装为 `UpdateBookCommand`（§6.9），经命令队列串行执行（见 §7.3 SD-3）。
 
 ### 6.4 PositionService
 阅读位置读写（`progress.json`），以及调用 `PositionMigrator` 完成版本间位置迁移（见 §8）。
@@ -262,21 +272,25 @@ sequenceDiagram
     autonumber
     actor U as 用户
     participant RD as ReaderUI
+    participant APP as AppService（薄门面）
     participant PS as PositionService
     participant RS as RenderService
     participant BS as BookStore
 
     U->>RD: 打开书籍 / 点击"继续阅读"
-    RD->>PS: get_position(book_id)
+    RD->>APP: open_reading(book_id)（单次门面调用，§6.9）
+    APP->>PS: get_position(book_id)
     PS->>BS: 读 progress.json
     BS-->>PS: ReadingPosition{version_id, chapter, anchor, ratio}
-    PS-->>RD: 定位到指定版本+章节
-    RD->>RS: render_chapter(book_id, version_id, chapter)
+    PS-->>APP: 定位到指定版本+章节
+    APP->>RS: render_chapter(book_id, version_id, chapter)
     RS->>BS: 读取工作区 site/ 下章节内容（v1 为当前版本）
     BS-->>RS: 章节 HTML / markdown
-    RS-->>RD: 渲染完成（dangerous_inner_html）
+    RS-->>APP: 渲染完成（dangerous_inner_html）
+    APP-->>RD: 打开阅读（HTML + 初始位置）
     U->>RD: 滚动阅读
-    RD->>PS: 节流保存 scroll_ratio / 切章保存
+    RD->>APP: 节流保存 scroll_ratio / 切章保存
+    APP->>PS: save_progress(book_id, 位置)
     PS->>BS: 写回 progress.json
 ```
 
@@ -309,6 +323,51 @@ sequenceDiagram
 
 **结论**：异步限制绕过/深度绕过/RCE/内存安全这几类 Java/C 生态漏洞，在 `serde_json` + Rust 内存模型下结构性不适用；唯一设计上同源的"无文档大小上限"以读入 guard 补齐。依赖层面的"无已知未修复漏洞"由 `cargo audit`（§12.1）持续验证。
 
+### 6.9 服务编排：薄门面 + 按需命令化
+
+调用关系上做两件事，避免"UI 直接认识多个服务、一次操作多次跨层调用"（落地 §2 原则 2 / 原则 6）：
+
+**薄门面（Facade，v1 即生效）**：UI 层只依赖 `AppService` 一个入口，单次用户操作 = 单次门面调用，协调细节全部收敛在门面内：
+
+- `add_book(url)`：把 SD-1 的 `detect(url)` + `add_book(url, kind)` 合并为一次调用（UI 不再触达 `SourceRegistry`）
+- `open_reading(book_id)`：把 SD-2 的"读位置 + 渲染章节 + 保存进度"合并为一次调用（UI 不再触达 `PositionService`/`RenderService`）
+
+效果：UI 依赖数从 O(服务数) 降到 O(1)；业务编排不泄漏进 Dioxus 屏幕，"`mdor-app` 只做『拿到 HTML 注入 + 交互』"（§12.1）由门面兜底。
+
+**命令化（Command，按需引入）**：按流程特征区分两类，不全局套壳：
+
+| 流程特征 | 处理方式 |
+|---|---|
+| 短、无网络、无并发、无进度需求 | 普通函数（删除书籍、progress.json 读写） |
+| 长 + 网络 + 可中断 + 需进度/串行 | 命令对象（更新书籍，SD-3） |
+
+命令把"一次更新"封装为数据对象 `UpdateBookCommand`，统一实现 `Command` trait、经命令队列串行执行：
+
+- **串行化**：队列一次只执行一条，天然落实 §6.7"单进程单写者"
+- **进度上报**：`progress()` 暴露当前阶段（检查/下载/提交/迁移），UI 订阅显示"正在更新…"
+- **中断续做**：命令携带执行阶段，Android 切后台/被杀后重试可跳过已完成步骤（如工作区已写好则不再下载）；完整断点续传不在命令范围内
+- **可测试**：命令边界单一（"完成一次更新"），注入假适配器即可单测（httpmock，见 §12.2）
+
+```rust
+// core/services/commands/mod.rs
+pub trait Command {
+    type Output;
+    /// 执行一次完整流程；ctx 持有全部模块句柄
+    async fn execute(&self, ctx: &AppContext) -> Result<Self::Output>;
+    /// 当前阶段（检查/下载/提交/迁移），供 UI 订阅
+    fn progress(&self) -> Option<Progress> { None }
+}
+
+// 命令队列：一次只执行一条（串行化 = §6.7 单写者）
+while let Some(cmd) = queue.recv().await {
+    cmd.execute(&ctx).await?;
+}
+```
+
+**v1 边界**：仅"更新书籍"（SD-3）命令化；"添加书籍"（SD-1）先拆命名函数（`check_latest` / `fetch_to_temp` / `commit_and_tag` / `migrate_and_save`），出现并发/进度需求再升级为命令。
+
+**为什么不用全局中介者**：架构为分层树状（UI→服务→核心叶子，服务间几乎无互调），`UpdateService`/`PositionService` 本就是各自流程的中介者；再引入全局 hub 会令所有模块反向依赖一个中央对象，流程变隐式、难以测试与定位——是净负收益。
+
 ---
 
 ## 7. 版本控制设计
@@ -340,13 +399,13 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor U as 用户
-    participant UP as UpdateService
+    participant UP as UpdateService（承载 UpdateBookCommand）
     participant AD as SourceAdapter
     participant VER as Versioning
     participant MIG as PathMigrator (v1 默认)
     participant BS as BookStore
 
-    U->>UP: 点击"更新"（书架 / 书籍详情）
+    U->>UP: 点击"更新" → UpdateBookCommand 入队，串行执行（§6.9）
     UP->>AD: remote_version(url)
     AD-->>UP: 远端版本标识
     alt 远端版本 ≠ 当前版本
@@ -564,10 +623,14 @@ mdor/
 │   │       │   ├── html_extract.rs    #   scraper 抽 <main> + 资源链接重写
 │   │       │   ├── markdown.rs        #   pulldown-cmark → HTML
 │   │       │   └── resources.rs       #   mdor-book:// 协议路由
-│   │       └── services/              # §6 服务编排层
+│   │       └── services/              # §6 服务编排层（§6.9 薄门面 + 命令化）
+│   │           ├── app_service.rs     #   AppService：UI 唯一门面（add_book / open_reading 等聚合入口）
 │   │           ├── book_manager.rs    #   add/remove/update 编排
-│   │           ├── update_service.rs  #   更新编排（§7.3 SD-3）
-│   │           └── position_service.rs#   进度读写 + 迁移调用（§8.4 SD-4）
+│   │           ├── update_service.rs  #   更新编排（承载 UpdateBookCommand，§7.3 SD-3）
+│   │           ├── position_service.rs#   进度读写 + 迁移调用（§8.4 SD-4）
+│   │           └── commands/          #   §6.9 命令对象（队列串行执行 + 进度上报）
+│   │               ├── mod.rs         #   Command trait + 命令队列
+│   │               └── update_book.rs #   UpdateBookCommand（SD-3 流程命令化）
 │   │
 │   └── mdor-app/              # Dioxus UI 二进制（dx 构建目标）
 │       ├── Cargo.toml
@@ -577,7 +640,7 @@ mdor/
 │       └── src/
 │           ├── main.rs        # dioxus::launch 入口 + Android getFilesDir()/桌面回退路径解析
 │           ├── app.rs         # Router + 主题
-│           ├── state.rs       # GlobalSignal：BookManager 句柄、当前书籍/版本
+│           ├── state.rs       # GlobalSignal：AppService 句柄、当前书籍/版本
 │           ├── screens/       # §3.1 UI 四屏
 │           │   ├── library.rs #   书架
 │           │   ├── add_book.rs#   添加书籍
@@ -594,6 +657,8 @@ mdor/
 
 - **数据目录注入而非硬编码**：`BookStore::new(base_dir)` 接收路径；`mdor-app` 启动时按平台解析（Android 走 JNI `getFilesDir()`，桌面走 `dirs`），core 保持平台无关（对应 §11 风险项）。
 - **核心与 UI 解耦验证**：全部业务逻辑（含渲染管线）在 core，`mdor-app` 只做「拿到 HTML 注入 + 交互」；验证方式即 `cargo test -p mdor-core` 桌面直跑。
+- **薄门面 = UI 唯一入口**：UI 层只依赖 `AppService`，单次用户操作 = 单次门面调用（`add_book(url)`、`open_reading(book_id)`），detect / 版本定位 / 进度保存等编排收敛在门面内，UI 依赖数从 O(服务数) 降到 O(1)。不引入全局中介者——架构为分层树状、服务间几乎无互调，`UpdateService`/`PositionService` 已是各自流程的中介者，再加全局 hub 会成上帝对象（见 §6.9）。
+- **长流程命令化 = 按需而非全局**：命令对象封装"一次完整流程"，经命令队列串行执行（落实 §6.7 单写者），可汇报进度、可携带中断点（重试跳过已完成步骤）。v1 仅"更新书籍"（SD-3）命令化；短流程（删除书籍、progress 读写）保持普通函数；"添加书籍"先用拆命名函数（§6.9）。
 - **`mdor-book://` 协议处理放 `render/resources.rs`**，跨平台复用；wry 协议兼容问题的 `tiny_http` 备选方案（§11）仅影响 app 侧接入点。
 - **异步运行时**：core 用 tokio；reqwest 配 rustls（Android 无 OpenSSL）。
 - **依赖版本统一**：reqwest / scraper / pulldown-cmark / serde / gix 等在根 `[workspace.dependencies]` 钉一次。
@@ -602,7 +667,7 @@ mdor/
 
 ### 12.2 里程碑映射
 
-- **M1**：建 workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + `mdor-app` 书架壳 → `cargo test -p mdor-core` + 书架可跑
+- **M1**：建 workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架壳 → `cargo test -p mdor-core` + 书架可跑
 - **M2 / M4**：补 `static_site.rs`（自建链 + 版本 tag）/ `github.rs`（clone 上游 + 版本 tag），用 `fixtures/` 做集成测试（HTTP mock：`httpmock` dev-dep）
 - **M5**：补 `migration/snapshot.rs`（方案 D）+ 版本历史 UI + checkout 切换 + 清理策略（初期删版本 tag；后续可选 shallow 截断 + gc，两场景统一）
 - **M6**：`mobile/` 生成 + Android 打包

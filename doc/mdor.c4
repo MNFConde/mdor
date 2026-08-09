@@ -32,6 +32,10 @@ model {
   }
 
   mdor = system 'mdor Android 应用 (Dioxus + WebView)' {
+    appService = component 'AppService' {
+      technology 'Rust 服务（薄门面）'
+      description 'UI 唯一入口：add_book / open_reading / update_book 等聚合调用'
+    }
     bookManager = component 'BookManager' {
       technology 'Rust 服务'
       description '书籍生命周期：添加/删除/更新调度'
@@ -77,8 +81,12 @@ model {
       description 'git 仓库落地、工作区 checkout、元数据读写'
     }
 
-    user -> bookManager '浏览/阅读/操作'
-    bookManager -> sourceRegistry 'add_book(url): 探测'
+    user -> appService '浏览/阅读/操作'
+    appService -> bookManager 'add_book / remove_book'
+    appService -> sourceRegistry 'add_book: detect(url)'
+    appService -> updateService 'update_book: UpdateBookCommand 入队'
+    appService -> positionService 'open_reading: get_position / save_progress'
+    appService -> renderService 'open_reading: render_chapter'
     sourceRegistry -> staticSite '静态站点适配'
     sourceRegistry -> githubSource 'GitHub 适配'
     bookManager -> versioning '初始化仓库 / 打首个版本 tag'
