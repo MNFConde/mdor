@@ -119,6 +119,16 @@ graph TB
 
 > 该图由 LikeC4 建模生成，源文件见 `doc/mdor.c4`（再生成：`likec4 gen mermaid doc -o <输出目录>`）。
 
+### 3.3 UI 平台自适应设计（移动优先 + 桌面壳）
+
+同一套 core 逻辑同时服务 Android（手机/平板）与 Windows 桌面；**自适应仅是 `mdor-app` UI 层的布局/交互差异，core 与业务逻辑零改动**（落地 §2 原则 2）。`mdor-app` 为 Dioxus WebView，视口宽度可直接读取（桌面为窗口宽度）。
+
+- **移动优先（默认，≤600px）**：底部导航（书架/添加/设置）、全屏阅读、目录抽屉、手势操作（滑动返回、下拉刷新）；断点以视口宽度 600px 划分。
+- **桌面壳（宽屏 ≥600px）**：左侧固定侧边栏（书架 + 目录树）、顶部工具栏、鼠标/键盘交互（快捷键、滚轮、右键菜单可选）；仅重建 UI 壳，`AppService` 句柄与阅读进度等状态不丢。
+- **断点切换**：监听视口宽度变化（如窗口缩至手机宽度）即时切换导航壳，验证见 §10 M3。
+- **输入适配**：添加书籍 URL——手机为文本输入 + 键盘；桌面支持快捷键聚焦与整段粘贴。URL 探测/校验仍在 core。
+- **手势与系统能力（M6 真机）**：Android 返回键/安全区（WebView 内容避让状态栏与导航栏）、触摸滚动与 WebView 渲染性能，验证见 §10 M6。
+
 ---
 
 ## 4. 插件化输入架构
@@ -552,13 +562,14 @@ sequenceDiagram
 
 | 阶段 | 内容 | 验证方式 |
 |---|---|---|
-| **M0** | Android 环境搭建（SDK/NDK/JDK、rustup android targets、dioxus-cli） | `dx serve --platform desktop` 跑通 |
-| **M1** | 脚手架：core 模块 + trait + 存储层（gix 基座）+ 书架骨架（中文 UI） | `cargo run` / `cargo test` |
+| **M0** | 桌面开发环境搭建（VS/MSVC、rust-toolchain、dioxus-cli；android targets/JDK/SDK/NDK 留待 M6） | `dx serve --platform desktop` 跑通 |
+| **M1** | 脚手架：core 模块 + trait + 存储层（gix 基座）+ 书架骨架（中文 UI）+ 挂轻量 `ci.yml`（fmt/clippy/test/audit） | `cargo run` / `cargo test` / CI 全绿 |
 | **M2** | `StaticSiteSource` + 递归镜像下载 | 用真实 mdBook 站点离线镜像 |
-| **M3** | 阅读器：内容抽取、资源协议、目录抽屉、滚动进度 | 桌面全流程 |
+| **M3** | 阅读器：内容抽取、资源协议、目录抽屉、滚动进度 | 桌面全流程 + 自适应布局验证（窗口缩至手机宽度） |
 | **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染 | 真实仓库测试 |
 | **M5** | 版本功能开放：版本历史 UI + 按需 checkout 多版本阅读 + SnapshotMigrator（方案 D）+ 清理策略（初期删版本 tag；后续 shallow 截断 + gc 为可选设置项，两场景统一） | 修改源站后更新，验证旧版本位置可回放 |
-| **M6** | Android 打包（APK）、权限/存储目录/cleartext 配置 | 模拟器/真机验证 |
+| **M6** | Android 打包（APK）、权限/存储目录/cleartext 配置 | 模拟器/真机验证 + 真机触控交互验证（滑动/返回/安全区/WebView/性能） |
+| **M7** | CI 与发布（GitHub Actions）：设计补充 + 落地 `ci.yml`（core-quality / windows-desktop-check / android-check）+ `release.yml`（tag 触发，签名 APK + Windows 桌面 exe）+ CI 与本地工具链解耦说明 | 打一个 tag 触发 CI 产出双平台 artifact；PR 自动跑质量与双平台编译检查 |
 
 ---
 
@@ -586,7 +597,7 @@ sequenceDiagram
 ```
 mdor/
 ├── Cargo.toml                 # [workspace] members + [workspace.dependencies] 统一锁定依赖版本
-├── rust-toolchain.toml        # 固定 1.97.1 + android targets（arm64-v8a / x86_64）
+├── rust-toolchain.toml        # 固定 1.97.1（M0 不装 android targets；M6 补回 arm64-v8a / x86_64，见 env.md §7）
 ├── .gitignore                 # /target、mobile/android 构建产物、fixtures 下载缓存
 ├── README.md
 ├── doc/                       # 本架构文档、mdor.c4 等
@@ -667,10 +678,36 @@ mdor/
 
 ### 12.2 里程碑映射
 
-- **M1**：建 workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架壳 → `cargo test -p mdor-core` + 书架可跑
+- **M1**：建 workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架壳 + **轻量 `ci.yml`（仅 core-quality：fmt/clippy/test/audit）** → `cargo test -p mdor-core` + 书架可跑 + CI 全绿
 - **M2 / M4**：补 `static_site.rs`（自建链 + 版本 tag）/ `github.rs`（clone 上游 + 版本 tag），用 `fixtures/` 做集成测试（HTTP mock：`httpmock` dev-dep）
 - **M5**：补 `migration/snapshot.rs`（方案 D）+ 版本历史 UI + checkout 切换 + 清理策略（初期删版本 tag；后续可选 shallow 截断 + gc，两场景统一）
 - **M6**：`mobile/` 生成 + Android 打包
+- **M7**：落地完整 CI + 发布（见 §12.3）——`ci.yml` 补 `windows-desktop-check` / `android-check`；`release.yml` tag 触发双平台产物（android 签名 APK + windows 桌面 exe）
+
+### 12.3 CI 与发布（GitHub Actions）
+
+仓库公开，Actions 分钟全免（Linux/Windows 均计 0）。**CI 与本地工具链解耦**：本地保持 MSVC + 计划内依赖（env.md §1），CI 用原生 runner 默认工具链；**不引入 Zig**（无跨平台交叉编译需求）。
+
+**`ci.yml`（PR / push 校验，M1 起先挂 core-quality，M7 补全）：**
+
+| Job | 环境 | 内容 |
+|---|---|---|
+| `core-quality` | `ubuntu-latest` + rust 1.97.1 | `cargo fmt --check` → `clippy -D warnings` → `cargo test -p mdor-core`（含 httpmock 集成）→ `cargo audit` |
+| `windows-desktop-check` | `windows-latest`（原生 MSVC，host 目标） | `cargo check -p mdor-app`，提前抓 Windows 侧编译回归 |
+| `android-check` | `ubuntu-latest` + NDK r29 + rust android targets | `cargo check --target aarch64-linux-android -p mdor-app` + `dx doctor` 冒烟 |
+
+**`release.yml`（tag `v0.1.0` 触发，双 job 并行）：**
+
+- **android**（`ubuntu-latest`）：JDK 21（`setup-java`）→ Android SDK + NDK r29（`android-actions/setup-android`）→ rust 1.97.1 + android targets → 钉版 dioxus-cli → `dx build --platform android --release --target aarch64-linux-android`（**release 只编 arm64-v8a 单 ABI**）→ keystore（GitHub Secrets）签名 → APK 上传 + Release asset
+- **windows-desktop**（`windows-latest`，原生 MSVC）：rust 1.97.1 → 钉版 dioxus-cli → `dx build --platform desktop --release` → exe 打 zip 上传 + Release asset
+
+**要点：**
+
+- rust-toolchain.toml 现为 M0 版（无 targets）；CI 用 `dtolnay/rust-toolchain` 显式装 `aarch64-linux-android` / `x86_64-linux-android` 双 target（对齐 env.md §7 toml 补回），release 构建只用 arm64。
+- CI 的 MSVC **不钉 14.50**：windows-latest 预装 VS Build Tools，Rust `find-msvc-tools` 自动识别即可；14.50 钉版仅服务本地可复现（env.md §1）。
+- 桌面产物仍需目标机 Win11 预装 WebView2；首版出 exe zip，`dx bundle` 安装包为可选增强。
+- 签名密钥与密码只存 GitHub Secrets，不入仓库。
+- 缓存：`Swatinem/rust-cache` + 缓存 dx 二进制（`cargo install dioxus-cli --locked` 是最耗时步骤）；`concurrency: cancel-in-progress` 取消重复 push。
 
 ---
 

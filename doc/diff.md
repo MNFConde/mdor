@@ -245,7 +245,7 @@ Rust 与网页通过桥接双向通信。**"WebView 宿主差异"的本质**：�
 
 ## 6. 构建工具链（工程层）
 
-- `project.md` §12：`rust-toolchain.toml` 固定 1.97.1 + android targets（arm64-v8a / x86_64）。
+- `project.md` §12：`rust-toolchain.toml` 固定 1.97.1（M0 阶段不装 android targets，M6 打包前补回 arm64-v8a / x86_64，见 `env.md` §7）。
 - Windows 本机用 MSVC 目标；Android 需 NDK + clang 交叉编译环境。
 - **依赖"纯 Rust"是对 Android 的硬约束，对 Windows 则宽松**——这是选 serde_json（非 SQLite，§6.7）、gix（非 git2，§7.4）、rustls（非 openssl）的原因；任何新增 C 依赖都会引入 Android 交叉编译差异点。
 

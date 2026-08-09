@@ -8,22 +8,26 @@
 
 ## 1. 环境总览与版本矩阵
 
-| 组件 | 版本 | 用途 | 安装位置 |
-|---|---|---|---|
-| Rust | 1.97.1（`rust-toolchain.toml` 钉版） | 主语言 | Scoop rustup 管理 |
-| MSVC 工具链 | `stable-x86_64-pc-windows-msvc` | Windows 本机构建/link | Scoop rustup 管理 |
-| Android targets | `aarch64-linux-android` / `x86_64-linux-android` | Android 交叉编译（arm64-v8a / x86_64） | rustup target |
-| **VS 2026 Build Tools** | MSVC **v14.50**（钉版）+ Win11 SDK 10.0.26100 | `link.exe` / Windows 本机链接 | `D:\VS\BuildTools` |
-| JDK | Microsoft OpenJDK 21 | dx 的 Gradle 侧 | `C:\Program Files\Microsoft\jdk-21...` |
-| Android SDK | cmdline-tools **14742923** + platform-tools + `platforms;android-36` + build-tools | Android 构建基座 | `D:\Android\Sdk` |
-| Android NDK | **r29**（`29.0.14206865`） | C/C++ 交叉编译（gix/ring 等） | `D:\Android\Sdk\ndk` |
-| dioxus-cli | 0.7.x（cargo install） | `dx serve/build` | `~/.cargo/bin` |
-| WebView2 | 随系统 | `dx serve --platform desktop` 渲染 | 预装（Win11） |
+> 「阶段」列：**M0** = 桌面开发当前安装；**M6** = Android 打包前再装（§2.4/§2.5 标注「M6 暂缓」）。
+
+| 组件 | 版本 | 用途 | 安装位置 | 阶段 |
+|---|---|---|---|---|
+| Rust | 1.97.1（`rust-toolchain.toml` 钉版） | 主语言 | Scoop rustup 管理 | M0 |
+| MSVC 工具链 | `stable-x86_64-pc-windows-msvc` | Windows 本机构建/link | Scoop rustup 管理 | M0 |
+| Android targets | `aarch64-linux-android` / `x86_64-linux-android` | Android 交叉编译（arm64-v8a / x86_64） | rustup target | M6 |
+| **VS 2026 Build Tools** | MSVC **v14.50**（LTS，钉版）+ Win11 SDK 10.0.26100 | `link.exe` / Windows 本机链接 | `D:\VS\BuildTools` | M0 |
+| JDK | Microsoft OpenJDK 21 | dx 的 Gradle 侧 | `C:\Program Files\Microsoft\jdk-21...` | M6 |
+| Android SDK | cmdline-tools **14742923** + platform-tools + `platforms;android-36` + build-tools | Android 构建基座 | `D:\Android\Sdk` | M6 |
+| Android NDK | **r29**（`29.0.14206865`） | C/C++ 交叉编译（gix/ring 等） | `D:\Android\Sdk\ndk` | M6 |
+| dioxus-cli | 0.7.x（cargo install） | `dx serve/build` | `~/.cargo/bin` | M0 |
+| WebView2 | 随系统 | `dx serve --platform desktop` 渲染 | 预装（Win11） | M0 |
 
 ### 版本对齐说明
 
 - **MSVC 版本与 VS 解耦**：VS 2026 中 MSVC 组件 ID 带独立版本号。本项目**钉 v14.50**（`VC.14.50.18.0.x86.x64`），与 `rust-toolchain.toml` 固定 1.97.1 的一致性策略一致；不随 VS 更新自动跳变。
+- **14.50 是 LTS 非最新**：14.50 随 VS 2026 18.0（2025-11）首发并被指定为长期支持版（支持至 2028-11）；当前最新 GA 是 14.51（2026-05，VS 18.6 默认，标准 9 个月支持）。钉 14.50 = 最长支持窗口 + 稳定性，非追最新。
 - **Rust ≥ 1.93 才能识别 VS 2026**：`find-msvc-tools 0.1.5` 于 Rust 1.93 合入；本机 1.97.1 满足。
+- **MSVC 仅约束 host 目标**：MSVC（link.exe）只服务 `x86_64-pc-windows-msvc` 桌面目标；Android 交叉编译走 NDK 自带 clang/lld，与 MSVC 解耦，同一 rustup 工具链下 MSVC host 与 android targets 可并存。
 - **NDK 选 r29**：dioxus 官方移动端文档与社区案例均覆盖 r28/r29；r28（`28.2.13676358`）可作回退。
 - **cmdline-tools 目录结构**：必须为 `cmdline-tools/latest/bin`，否则 `sdkmanager` 不可用。
 
@@ -31,9 +35,18 @@
 
 ## 2. 安装步骤（按依赖顺序）
 
+**两阶段安装总览：**
+
+- **M0（桌面开发，当前安装）**：VS Build Tools（§2.1）→ rust-toolchain.toml（§2.2）→ dioxus-cli（§2.3）
+- **M6（Android 打包前再装，暂缓）**：JDK 21（§2.4）→ Android SDK + NDK（§2.5）；另需把 android targets 补回 `rust-toolchain.toml`（见 §7 过渡清单）
+
 ### 2.1 VS 2026 Build Tools（MSVC v14.50 钉版）
 
 > 作用：为 Windows 本机 MSVC 目标提供 `link.exe`。**必须先装，否则 `cargo build` 报 link 错误。**
+
+**两种装法（选一）：**
+
+**A. 已验证：workload 安装 + 装完卸载 Latest（2026-08 本机实测）**
 
 ```powershell
 Invoke-WebRequest https://aka.ms/vs/stable/vs_buildtools.exe -OutFile "$env:TEMP\vs_buildtools.exe"
@@ -48,16 +61,49 @@ Invoke-WebRequest https://aka.ms/vs/stable/vs_buildtools.exe -OutFile "$env:TEMP
   --add Microsoft.Component.VC.Runtime.UCRTSDK
 ```
 
-**两个必知的坑：**
+> 18.6+ 的 C++ workload 会默认带上 Latest 编译器（当前 14.51），装完与 14.50 并存。卸载 Latest：
+
+```powershell
+& "$env:TEMP\vs_buildtools.exe" modify --installPath "D:\VS\BuildTools" `
+  --remove Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+  --quiet --wait --norestart
+```
+
+> 卸载后清理残留（原因见坑 3）：
+
+```powershell
+Remove-Item "D:\VS\BuildTools\VC\Tools\MSVC\14.51.36231" -Recurse -Force
+Set-Content "D:\VS\BuildTools\VC\Auxiliary\Build\Microsoft.VCToolsVersion.v145.default.txt" "14.50.35717"
+```
+
+**B. 理论：不用 workload、纯组件（推荐全新安装，从源头避免 Latest）**
+
+```powershell
+Invoke-WebRequest https://aka.ms/vs/stable/vs_buildtools.exe -OutFile "$env:TEMP\vs_buildtools.exe"
+& "$env:TEMP\vs_buildtools.exe" --quiet --wait --norestart --nocache `
+  --path install="D:\VS\BuildTools" `
+  --path cache="D:\VS\cache" `
+  --path shared="D:\VS\shared" `
+  --add Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64 `
+  --add Microsoft.VisualStudio.Component.Windows11SDK.26100 `
+  --add Microsoft.VisualStudio.Component.VC.CMake.Project `
+  --add Microsoft.Component.VC.Runtime.UCRTSDK
+```
+
+> 依赖（MSBuild、VC Runtime 等）由安装器自动解析；不装 workload 便不会引入 Latest（`VC.Tools.x86.x64` 无组件依赖它）。**未实测**，装完须核对 `VC\Tools\MSVC` 下只有 14.50。
+
+**三个必知的坑：**
 
 1. **`Windows11SDK.26100` 不可省**：漏装 SDK 组件时，即使手动能找到 `link.exe`，rustc 仍会报「找不到 link.exe」（2026-01 社区真实案例）。`link.exe` 在，缺的是 SDK。
-2. **`VC.Tools.x86.x64`（Latest 指针）是 Recommended 非 Required**：只 `--add` 工作负载不会装上编译器。本命令显式钉了 `VC.14.50.18.0.x86.x64`，若改回 Latest 需显式加 `--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64`。
+2. **18.6+ 的 C++ workload 默认带上 Latest 编译器**：VS 2026 18.0 时代「只 `--add` 工作负载不会装上编译器」，18.6 起默认装 Latest（当前 14.51），与钉版 14.50 并存。装法 A 已含卸载流程；全新安装建议直接装法 B。若想用 Latest 指针而非钉版，需显式 `--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64`。
+3. **卸载 Latest 后残留 stub 目录与 default 标记**：无论 UI 取消勾选还是 `--remove`，`VC\Tools\MSVC\14.51.xxx` 都会剩 2 个 props 残壳（无 `link.exe`），且 `VC\Auxiliary\Build\Microsoft.VCToolsVersion.v145.default.txt` 仍指向已删版本。需手动删除空壳目录、把 `v145.default.txt` 改为 `14.50.35717`；只剩 14.50 时 Rust 的 find-msvc-tools 会回退到目录扫描。MSBuild 读 `v145\Microsoft.VCToolsVersion.VC.14.50.18.0.props`，不受影响。**注意**：`Microsoft.VCRedistVersion.default.txt` 指向最新 redist（14.51）是刻意设计（redist 跨工具集共享、v14x ABI 兼容），不要改。
 
 **验证：**
 
 ```powershell
 rustup default stable-x86_64-pc-windows-msvc   # 切换默认工具链为 MSVC
 rustup run stable-x86_64-pc-windows-msvc rustc -vV   # host 应显示 x86_64-pc-windows-msvc
+Get-ChildItem "D:\VS\BuildTools\VC\Tools\MSVC"        # 应只有 14.50.35717
 ```
 
 新建临时工程做一次真实链接验证：
@@ -78,24 +124,40 @@ Set-Location ..
 ```toml
 [toolchain]
 channel = "1.97.1"
-targets = [
-    "aarch64-linux-android",
-    "x86_64-linux-android",
-]
+# M6：补回 "aarch64-linux-android"、"x86_64-linux-android"
 profile = "minimal"
 ```
 
 - `channel` 固定 1.97.1，进入仓库目录即自动使用（需先 `rustup default stable-x86_64-pc-windows-msvc` 保证 host 为 MSVC）。
-- `targets` 仅列 arm64-v8a / x86_64（对应 §12 规划）；armv7/i686 不需要。
+- **M0 版不列 `targets`**：桌面开发（`dx serve --platform desktop`）只需 host 的 MSVC 目标，android targets 留到 M6 打包前再补（对应 §1 阶段列 / §12 规划；armv7/i686 不需要）。
 - `profile = "minimal"` 减省 rustup 组件占用。
 
 **验证：**
 
 ```powershell
-rustup show   # 显示 active toolchain = 1.97.1-x86_64-pc-windows-msvc，且两个 android target 已安装
+rustup show   # 显示 active toolchain = 1.97.1-x86_64-pc-windows-msvc（M0 不含 android targets）
 ```
 
-### 2.3 JDK 21（dx 的 Gradle 侧需要）
+> M0 阶段 `dx doctor` 提示缺 android targets 属正常（见 §2.3）。
+
+### 2.3 dioxus-cli（dx）
+
+```powershell
+cargo install dioxus-cli --locked
+```
+
+> 首次安装会编译约数百个 crate，耗时较长。装完 `dx` 位于 `~/.cargo/bin`（Scoop 的 rustup 已在 PATH）。
+
+**验证：**
+
+```powershell
+dx --version
+dx doctor    # 体检：桌面项（MSVC/WebView2）应全绿；SDK/NDK/JDK/rust android targets 缺失属正常（M6 才启用，见 §7）
+```
+
+### 2.4 JDK 21（dx 的 Gradle 侧需要）【M6 暂缓】
+
+> M0 桌面开发不需要（`dx serve --platform desktop` 不走 Gradle）；M6 打包前再装（见 §7 过渡清单）。
 
 ```powershell
 winget install --id Microsoft.OpenJDK.21 --source winget --accept-package-agreements --accept-source-agreements
@@ -111,8 +173,9 @@ java -version   # 输出 openjdk 21.x
 echo $env:JAVA_HOME
 ```
 
-### 2.4 Android SDK + NDK
+### 2.5 Android SDK + NDK【M6 暂缓】
 
+> M0 桌面开发不需要；M6 打包前再装（见 §7 过渡清单）。
 > 根目录统一放 `D:\Android\Sdk`，与其余大件（VS、JSB）同盘。
 
 ```powershell
@@ -149,28 +212,13 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.
 # yes | sdkmanager --licenses
 ```
 
-> 若 sdkmanager 报 Java 相关错误，确认 JAVA_HOME 已生效（2.3 节）。组件版本可用 `sdkmanager --list` 查询最新。
+> 若 sdkmanager 报 Java 相关错误，确认 JAVA_HOME 已生效（2.4 节）。组件版本可用 `sdkmanager --list` 查询最新。
 
 **验证：**
 
 ```powershell
 adb --version                              # 平台工具可用
 ls "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang.cmd"
-```
-
-### 2.5 dioxus-cli（dx）
-
-```powershell
-cargo install dioxus-cli --locked
-```
-
-> 首次安装会编译约数百个 crate，耗时较长。装完 `dx` 位于 `~/.cargo/bin`（Scoop 的 rustup 已在 PATH）。
-
-**验证：**
-
-```powershell
-dx --version
-dx doctor    # 体检：SDK/NDK/JDK/rust targets/WebView2 全绿
 ```
 
 ---
@@ -183,13 +231,7 @@ dx doctor    # 体检：SDK/NDK/JDK/rust targets/WebView2 全绿
 dx serve --platform desktop
 ```
 
-跑通即表示：workspace 可编译、wry/WebView2 可用、MSVC 链接正常。桌面跑通后 Android 侧可试：
-
-```powershell
-dx build --platform android --target aarch64-linux-android
-```
-
-（`dx serve --platform android` 需要模拟器/真机，见 §5 体积选项。）
+跑通即表示：workspace 可编译、wry/WebView2 可用、MSVC 链接正常。Android 侧（`dx build` / `dx serve --platform android`）延后至 M6，见 §5 与 §7 过渡清单。
 
 ---
 
@@ -248,23 +290,31 @@ dx doctor         # 工具链体检（框架/环境升级后）
 
 ## 5. 体积与精简选项
 
-M0 全量工具链占用估算：
+工具链占用按两阶段估算：
+
+**M0（桌面开发，当前安装）≈ 7–10 GB：**
 
 | 组件 | 占用 |
 |---|---|
 | VS 2026 Build Tools（v14.50 + SDK） | 6–8 GB |
-| Android NDK r29 | 4–6 GB（最大单件） |
-| Android SDK 其余 | 0.5–0.8 GB |
-| JDK 21 | ~0.3 GB |
 | dioxus-cli + cargo 依赖 | 0.5–1 GB |
-| **合计** | **≈ 12–16 GB** |
+| **M0 小计** | **≈ 7–10 GB** |
 
-精简建议（按需取舍）：
+**M6（Android 打包，追加安装）≈ 5–7 GB：**
 
-1. **只做桌面开发可暂缓 NDK**：M0 验收只要 `dx serve --platform desktop`；NDK 延后到 M6 打包再装，省 4–6 GB。
-2. **只装单 ABI**：`dx build --android --target aarch64-linux-android` 只编 arm64，不必装多余 build-tools 平台。
-3. **不装模拟器**：开发期直接连真机（`dx serve --platform android --device`），省 emulator + 系统镜像 2.5–3.5 GB。
-4. **VS 缓存目录清理**：`D:\VS\cache` 可在安装后删除（`--nocache` 已抑制本轮缓存）。
+| 组件 | 占用 |
+|---|---|
+| Android NDK r29 | 4–6 GB（最大单件） |
+| Android SDK 其余（cmdline-tools + platform-tools + platform/build-tools） | 0.5–0.8 GB |
+| JDK 21 | ~0.3 GB |
+| **M6 追加小计** | **≈ 5–7 GB** |
+
+精简建议（按需取舍，标注适用阶段）：
+
+1. **（M0）只装桌面所需**：按 §2 两阶段执行——M0 只装 VS Build Tools + dx；JDK/SDK/NDK 留到 M6 打包前再装，省 5–7 GB。
+2. **（M6）ABI 按场景取舍**：**本地模拟器 debug 编 arm64-v8a + x86_64**（双 ABI，仍单 APK：模拟器跑 x86_64、真机跑 arm64）；**release / 纯真机调试只编 arm64-v8a**（单 ABI 最省）。`rustup target add` 两个 target 都装（对齐 §7 toml 补回），release 构建只用 arm64。
+3. **（M6）不装模拟器**：开发期直接连真机（`dx serve --platform android --device`），省 emulator + 系统镜像 2.5–3.5 GB。
+4. **（M0）VS 缓存目录清理**：`D:\VS\cache` 可在安装后删除（`--nocache` 已抑制本轮缓存）。
 
 ---
 
@@ -274,14 +324,45 @@ M0 全量工具链占用估算：
 |---|---|---|
 | `cargo build` 报找不到 link.exe / MSVC 链接失败 | VS Build Tools 未装 / MSVC 工具链未激活 | 重跑 §2.1；`rustup show` 确认 host 为 msvc |
 | `link.exe` 找得到但 rustc 仍报错 | 缺 Windows 11 SDK 组件 | 确认 `Windows11SDK.26100` 已 `--add`（§2.1） |
-| `sdkmanager` 无法启动 | JAVA_HOME 未生效 | 新开终端；确认 §2.3 |
+| `sdkmanager` 无法启动 | JAVA_HOME 未生效 | 新开终端；确认 §2.4 |
 | `dx build --android` 链接报乱码/参数过长 | 旧版 dx 的 Windows 链接器代理 bug | 升级 dioxus-cli ≥ 0.7.1（PR #4126 已修） |
-| `dx doctor` 提示缺 android target | rust-toolchain.toml 未生效 | 在仓库根目录运行；`rustup target list --installed` 核对 |
+| `dx doctor` 提示缺 android target / SDK / NDK / JDK | **M0 阶段属正常**（Android 侧 M6 才启用） | M0 不必处理；M6 时按 §7 过渡清单补装并改回 `rust-toolchain.toml` |
 | Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics` | 真机 API < 30 | 在 `Dioxus.toml` 设 `min_sdk_version = 30` |
 
 ---
 
-## 7. 记录
+## 7. M0 → M6 过渡清单（补回 Android 侧）
+
+M0 验收通过、进入 M6 Android 打包前，按序补齐：
+
+```powershell
+# 1) rust-toolchain.toml 补回 android targets（去掉 M0 注释，恢复 targets 数组）
+#    targets = ["aarch64-linux-android", "x86_64-linux-android"]
+
+# 2) 安装 rust android targets
+rustup target add aarch64-linux-android x86_64-linux-android
+
+# 3) 装 JDK 21（§2.4）
+winget install --id Microsoft.OpenJDK.21 --source winget --accept-package-agreements --accept-source-agreements
+[Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-21.0.x.x-hotspot', 'User')
+
+# 4) 装 Android SDK + NDK（§2.5，新开终端使环境变量生效）
+$sdkRoot = 'D:\Android\Sdk'
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
+yes | sdkmanager --licenses
+
+# 5) 体检全绿
+dx doctor    # SDK/NDK/JDK/rust targets 不再缺项
+```
+
+> 完成即回到 §3 的 Android 侧验证（`dx build --platform android --target aarch64-linux-android`）。
+
+---
+
+## 8. 记录
 
 - 2026-08-09：初始化本文档；本机环境核对（Rust 1.97.1 / MSVC 工具链已装未激活 / dx、JDK、Android SDK、NDK 待装 / VS Build Tools 待装）。新增 §4 依赖升级策略（Rust 依赖 / 工具链 / Dioxus 框架 / 升级后必跑清单）。
+- 2026-08-09：MSVC 钉版实操——18.6+ workload 默认带 Latest（14.51）致与 14.50 并存，卸载 Latest 后清理 stub 目录 + `v145.default.txt` 残留；smoke 构建（1.97.1-msvc）验证链接走 14.50；默认工具链切至 `stable-x86_64-pc-windows-msvc`。§2.1 增补装法 B（纯组件，理论）。
+- 2026-08-09：环境按 M0/M6 两阶段拆分——§1 矩阵加阶段列；§2 顶部加安装总览并重排（§2.3 dx / §2.4 JDK / §2.5 SDK+NDK，后两者标「M6 暂缓」）；§2.2 改 M0 版 toml（去 android targets）；§3 验收删 Android 试用段并保留 M6 指引；§5 拆两阶段体积表；§6 更新 dx doctor 行；新增 §7 过渡清单。
+- 2026-08-09：已评估「Zig 替代 C 编译工具链」——Android 侧仅能替换编译器、仍需 NDK 的 bionic sysroot/platform libs（省不掉 NDK），且偏离 dioxus/dx 官方 Gradle 管线；host 侧 `zig cc -target x86_64-windows-msvc` 为非标组合，依赖 find-msvc-tools 的 build.rs 会失败。结论：不采纳，维持 MSVC host + M6 补 NDK 官方路径。同日本文档补充：§1「MSVC 仅约束 host」解耦说明；§5 精简建议第 2 条改 ABI 场景取舍（本地模拟器 debug 双 ABI / release 单 arm64）。
 - 组件版本以官方渠道为准，升级前先查 `sdkmanager --list` 与 [NDK Revision History](https://developer.android.com/ndk/downloads/revision_history)。
