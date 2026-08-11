@@ -7,10 +7,12 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 与用户交流一律使用中文
 - 指令若与仓库文档（`doc/`）或既有约定不符，先指出冲突点、说明取舍，再执行
 - 项目状态发生变化（如 M1 落地、workspace 建立、工具链变更）时，同步更新本文件对应的状态描述，避免误导后续会话
+- 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取
 
 ## 文档即源码
 
 - `doc/README.md` 是文档地图；project/decisions/diff/env 四篇为规划稿，随实现持续更新
+- `doc/` 只收与项目架构、实现相关的文档；提交规范、工作流等约束/约定不入 doc/（提交格式放 `.agents/rules/`）；归属拿不准时先确认再放
 - 引用一律 markdown 链接（跨文件 `[x](file.md#锚点)` / 站内 `[x](#锚点)`），不用裸编号
 - `decisions.md` 的 ADR 编号 `D-xx` 连续递增，标题不含 `、（）+` 等标点
 - 改完 doc 必须跑锚点一致性检查，退出码非 0 = 有不匹配：
