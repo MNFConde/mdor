@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""check-links.py — 校验 doc/ 各 Markdown 的跨文件与站内锚点引用一致性。
+
+用法:
+  uv run --directory script check-links.py
+  uv run --directory script check-links.py --doc-root <doc目录>
+
+对 project.md / decisions.md / env.md / diff.md 中形如 `](…md#anchor)` 的跨文件链接
+与形如 `](#anchor)` 的站内链接, 逐一与目标文件标题生成的 GitHub slug 比对;
+有任何不匹配时列出并返回 exit code 1 (供 CI/本地检查).
+"""
+
+import argparse
+import re
+import sys
+import unicodedata
+from pathlib import Path
+
+FILES = ("project.md", "decisions.md", "env.md", "diff.md")
+
+HEADING_RE = re.compile(r"^#{1,4} ")
+LINK_RE = re.compile(r"\]\(([^)]+)\)")
+TARGET_RE = re.compile(r"^([^#]*)#(.+)$")
+
+
+def github_slug(heading: str) -> str:
+    out = ""
+    for ch in heading.lower():
+        if unicodedata.category(ch)[0] in ("L", "N") or ch in (" ", "-"):
+            out += ch
+    out = out.strip()
+    while "  " in out:
+        out = out.replace("  ", " ")
+    return out.replace(" ", "-")
+
+
+def headings_of(path: Path) -> list[str]:
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if HEADING_RE.match(line):
+            out.append(re.sub(r"^#+\s*", "", line))
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="校验 doc/ 锚点引用一致性")
+    parser.add_argument(
+        "--doc-root",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "doc",
+        help="doc 目录（默认仓库根下 doc/）",
+    )
+    args = parser.parse_args()
+
+    root = args.doc_root
+    cache: dict[str, list[str]] = {}
+    issues: list[tuple[str, int, str, str]] = []
+    checked = 0
+
+    for file in FILES:
+        lines = (root / file).read_text(encoding="utf-8").splitlines()
+        self_head = cache.setdefault(file, headings_of(root / file))
+        for i, line in enumerate(lines):
+            for m in LINK_RE.finditer(line):
+                inner = m.group(1).strip()
+                tm = TARGET_RE.match(inner)
+                if not tm:
+                    continue
+                target, anchor = tm.group(1).strip(), tm.group(2)
+                is_cross = target in FILES
+                is_internal = target == ""
+                if not (is_cross or is_internal):
+                    continue
+                checked += 1
+                heads = cache.setdefault(target, headings_of(root / target)) if is_cross else self_head
+                ok = any(github_slug(h) == anchor for h in heads)
+                if not ok:
+                    issues.append((file, i + 1, target if is_cross else file, anchor))
+
+    print(f"checked {checked} anchor link(s)")
+    if not issues:
+        print("OK: all anchors resolve")
+        return 0
+    for file, lineno, target, anchor in issues:
+        print(f"MISMATCH {file}:{lineno} -> {target}#{anchor}")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.exit(main())
