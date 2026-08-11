@@ -1,0 +1,113 @@
+// mdor Android 应用 — 组件图模型 (LikeC4 DSL)
+// 再生成命令: likec4 gen mermaid doc -o <输出目录>
+
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element system
+  element external-system {
+    style {
+      color muted
+    }
+  }
+  element component
+}
+
+model {
+  user = actor '用户' {
+    description 'Android 用户'
+  }
+
+  remoteHtml = external-system '托管静态站点' {
+    description 'mdBook 渲染后的 HTML 站点'
+  }
+  github = external-system 'GitHub' {
+    description '上游仓库 git 历史 / commit SHA'
+  }
+  fs = external-system '设备本地存储' {
+    description 'library.json / progress.json / books/<id>/（gix 仓库 .git + 工作区 + 仓库外 .mdor/ 元数据）'
+  }
+
+  mdor = system 'mdor Android 应用 (Dioxus + WebView)' {
+    appService = component 'AppService' {
+      technology 'Rust 服务（薄门面）'
+      description 'UI 唯一入口：add_book / open_reading / update_book 等聚合调用'
+    }
+    bookManager = component 'BookManager' {
+      technology 'Rust 服务'
+      description '书籍生命周期：添加/删除/更新调度'
+    }
+    sourceRegistry = component 'SourceRegistry' {
+      technology 'Rust 服务'
+      description '按 URL 探测并注册 SourceAdapter'
+    }
+    updateService = component 'UpdateService' {
+      technology 'Rust 服务'
+      description '更新流程编排：对比→拉取/提交→打版本 tag→位置映射'
+    }
+    positionService = component 'PositionService' {
+      technology 'Rust 服务'
+      description '阅读位置读写与迁移调用'
+    }
+    renderService = component 'RenderService' {
+      technology 'Rust 服务'
+      description '章节内容抽取与 HTML 渲染'
+    }
+    staticSite = component 'StaticSiteSource' {
+      technology 'Rust 插件'
+      description '镜像托管 HTML 站点（自建 commit 链）'
+    }
+    githubSource = component 'GitHubSource' {
+      technology 'Rust 插件'
+      description 'git clone/fetch 上游仓库并渲染 markdown'
+    }
+    pathMigrator = component 'PathMigrator' {
+      technology 'Rust 插件'
+      description 'v1 更新默认：按章节路径映射位置'
+    }
+    snapshotMigrator = component 'SnapshotMigrator' {
+      technology 'Rust 插件'
+      description '方案 D：位置绑定 commit 快照直连（M5 开放）'
+    }
+    versioning = component 'Versioning' {
+      technology 'Rust 核心'
+      description 'commit / 版本 tag 生成、HEAD/ref 维护、对象库去重（gix）'
+    }
+    bookStore = component 'BookStore' {
+      technology 'Rust 核心'
+      description 'git 仓库落地、工作区 checkout、元数据读写'
+    }
+
+    user -> appService '浏览/阅读/操作'
+    appService -> bookManager 'add_book / remove_book'
+    appService -> sourceRegistry 'add_book: detect(url)'
+    appService -> updateService 'update_book: UpdateBookCommand 入队'
+    appService -> positionService 'open_reading: get_position / save_progress'
+    appService -> renderService 'open_reading: render_chapter'
+    sourceRegistry -> staticSite '静态站点适配'
+    sourceRegistry -> githubSource 'GitHub 适配'
+    bookManager -> versioning '初始化仓库 / 打首个版本 tag'
+    bookManager -> bookStore '读写书籍元数据'
+    updateService -> versioning 'check_update / 拉取或提交'
+    updateService -> pathMigrator '更新后按路径映射位置'
+    positionService -> snapshotMigrator '版本切换/迁移 (M5)'
+    positionService -> bookStore '读/写 progress.json'
+    versioning -> bookStore '提交 commit / 打版本 tag / 更新 HEAD'
+    renderService -> bookStore '读取章节内容'
+  }
+
+  staticSite -> remoteHtml 'HTTP 镜像 (reqwest)'
+  githubSource -> github 'git clone/fetch 上游仓库'
+  bookStore -> fs '文件读写'
+}
+
+views {
+  view component-view of mdor {
+    title 'mdor Android 应用 — 组件图 (C4 Component)'
+    include *
+    autoLayout TopBottom
+  }
+}

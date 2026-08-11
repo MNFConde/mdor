@@ -2,7 +2,6 @@
 
 > 移动端 mdBook 离线阅读器 · Android · Rust + Dioxus
 > 版本：0.1.0（规划稿）
-> 文档索引见 [README.md](README.md)；关键决策见 [decisions.md](decisions.md)
 
 ---
 
@@ -27,7 +26,7 @@
 | HTTP | reqwest (rustls) | Android 无 OpenSSL 依赖 |
 | HTML 解析 | scraper | 抽取 mdBook `<main>` 内容 |
 | Markdown | pulldown-cmark | 渲染 GitHub markdown 源 |
-| 序列化 | serde / serde_json | 元数据与进度存储；`serde_json` 内置 128 层递归深度限制（防深嵌套栈溢出 DoS）、无 RUSTSEC、Rust 内存安全（见 [§6.7](#67-元数据写入可靠性json不用-sqlite) / [D-02](decisions.md#d-02-json-元数据而非-sqlite)） |
+| 序列化 | serde / serde_json | 元数据与进度存储；`serde_json` 内置 128 层递归深度限制（防深嵌套栈溢出 DoS）、无 RUSTSEC、Rust 内存安全（见 §6.7） |
 | 存储 | 本地文件系统 + gix | JSON 元数据 + 每书一个 git 仓库 |
 | 版本/去重 | gix | commit 图 + 版本 tag 承载版本关系，对象库内容寻址去重 |
 
@@ -46,7 +45,7 @@
 3. **离线优先**：所有内容必须先落盘才可阅读，网络仅用于获取与更新。
 4. **版本感知**：书籍内容按 git commit 管理，每次抓取/更新打一个版本 tag（指向 commit sha），版本关系由 commit 图承载；阅读位置绑定具体版本，可回放、可迁移。
 5. **位置迁移可插拔**：版本间的阅读位置跳转策略做成插件；v1 默认实现为"路径映射"（更新追最新），后续可扩展其他策略（含多版本快照直连）。
-6. **编排收敛（薄门面 + 按需命令化）**：UI 层只依赖一个应用门面 `AppService`，单次用户操作 = 单次门面调用，业务编排不泄漏进 UI；长流程（网络 + 多步 + 可中断 + 需进度/串行）封装为命令对象，经命令队列串行执行。**不引入全局中介者**——架构为分层树状，`UpdateService`/`PositionService` 本就是各自流程的中介者，再加全局 hub 会退化为上帝对象（见 [§6.9](#69-服务编排薄门面-按需命令化) / [D-07](decisions.md#d-07-薄门面与命令化)）。
+6. **编排收敛（薄门面 + 按需命令化）**：UI 层只依赖一个应用门面 `AppService`，单次用户操作 = 单次门面调用，业务编排不泄漏进 UI；长流程（网络 + 多步 + 可中断 + 需进度/串行）封装为命令对象，经命令队列串行执行。**不引入全局中介者**——架构为分层树状，`UpdateService`/`PositionService` 本就是各自流程的中介者，再加全局 hub 会退化为上帝对象（见 §6.9）。
 
 ---
 
@@ -118,7 +117,7 @@ graph TB
   Mdor.BookStore -. "文件读写" .-> Fs
 ```
 
-> 该图由 LikeC4 建模生成，源文件见 [mdor.c4](mdor.c4)（再生成：`likec4 gen mermaid doc -o <输出目录>`）。
+> 该图由 LikeC4 建模生成，源文件见 `doc/mdor.c4`（再生成：`likec4 gen mermaid doc -o <输出目录>`）。
 
 ### 3.3 UI 平台自适应设计（移动优先 + 桌面壳）
 
@@ -272,7 +271,7 @@ pub struct MigratedPosition {
 
 ### 6.5 RenderService
 统一渲染管线：
-- `StaticSite` 路径：读取章节 HTML → `scraper` 抽取 `<main id="content">` → 重写资源链接为本地绝对 URL（`http://127.0.0.1:PORT/books/<id>/<path>`，不带版本号，两端统一走本地 http 服务，见 [diff.md §2.3](diff.md#23-逐维度对比) / [D-04](decisions.md#d-04-本地资源分发)）→ `dangerous_inner_html` 注入（[D-05](decisions.md#d-05-渲染形态)）
+- `StaticSite` 路径：读取章节 HTML → `scraper` 抽取 `<main id="content">` → 重写资源链接为本地绝对 URL（`http://127.0.0.1:PORT/books/<id>/<path>`，不带版本号，两端统一走本地 http 服务，见 `doc/diff.md` §2.3）→ `dangerous_inner_html` 注入
 - `GitHub` 路径：读取 `.md` → `pulldown-cmark` → HTML → 同一注入管线
 - 内联书籍 CSS，保证代码高亮等样式一致
 
@@ -314,19 +313,29 @@ sequenceDiagram
 | 写入一半被杀（滚动存进度） | 文件损坏 | **原子写**：写 `*.tmp` + 同目录 `rename` 覆盖（Android/Linux 上原子），要么旧文件要么新文件，无半写状态 |
 | 启动读到坏文件 | 无法解析 | 覆盖前保留 `.bak`，启动解析失败回退备份 |
 | `add_book`/更新多步中断（建仓库 → 写 `.mdor/` → 写 `library.json`） | 半完成状态 | `library.json` **最后写** = 提交点：中断后书架无此书/仍为旧版本；孤儿 `books/<id>/` 目录启动时清理 |
-| 断电/内核崩溃 | rename 未落盘 | fsync 兜底：**按文件类型分层**——`library.json` 做 fsync（低频高价值），`progress.json` 仅 rename（高频低价值，见 [diff.md §7.2](diff.md#72-mdor-的取舍已决策-2026-08-09按文件类型分层) / [D-03](decisions.md#d-03-原子写与-fsync-分层)） |
+| 断电/内核崩溃 | rename 未落盘 | fsync 兜底：**按文件类型分层**——`library.json` 做 fsync（低频高价值），`progress.json` 仅 rename（高频低价值，见 `doc/diff.md` §7.2） |
 
 - 原子写封装为 `store` 内工具函数 `write_json_atomic(path, &data, durability)`，`durability` 为 `Fsync` / `RenameOnly`，调用方按文件类型传（`library.json` → Fsync；`progress.json`、versions 元数据 → RenameOnly），不按平台分支，core 平台无关
-- 读取统一走 `read_json_capped(path, MAX_META_BYTES)`：**读文件前按字节数上限拦截**（默认 1MB，远超正常元数据量级），把"超大文档耗尽 CPU/内存"这类 DoS 彻底关死（纵深防御，见 [D-02](decisions.md#d-02-json-元数据而非-sqlite)）
+- 读取统一走 `read_json_capped(path, MAX_META_BYTES)`：**读文件前按字节数上限拦截**（默认 1MB，远超正常元数据量级），把"超大文档耗尽 CPU/内存"这类 DoS 彻底关死（纵深防御，见 §6.8）
 - 此策略适用于 `library.json`、`progress.json`；`.mdor/versions/<sha>.json` 为只增写、失败可重写，同样走原子写
 
 ### 6.8 解析器安全对照（serde_json 选型依据）
 
-选型时逐项对照了 Java/C 生态近期公开漏洞（Jackson-core 异步解析器数字长度绕过 / 嵌套深度限制绕过、Eclipse Parsson 无文档大小上限、Fastjson2 AutoType RCE、cJSON 多个内存安全漏洞），结论：**均为 Java/C 生态问题，`serde_json` 在 Rust 内存模型下结构性不适用**（`from_str` 内置 128 层递归限制、无多态反序列化、内存安全由语言保证）；唯一设计上同源的"无文档大小上限"以 `read_json_capped()` 1MB 读入 guard 补齐。完整对照表与结论见 [D-02 JSON 元数据而非 SQLite](decisions.md#d-02-json-元数据而非-sqlite)。
+选型时逐项对照了其他 JSON 解析器生态近期公开的漏洞，结论：**以下均为 Java/C 生态问题，`serde_json` 不受影响**。
+
+| 漏洞 | 属于 | 漏洞本质 | 对 `serde_json` 的适用性 |
+|---|---|---|---|
+| CVE-2026-18401（Jackson-core 异步解析器数字长度绕过） | Java | 非阻塞/异步解析路径漏掉 `maxNumberLength` 校验 → 无限分配 + O(n²) 大数解析 → DoS | 无此类"异步流式解析"API；本项目只用 `from_str` 整块解析自有小文件，不适用 |
+| CVE-2026-29062（Jackson-core 嵌套深度限制绕过） | Java | `DataInput`/`Reader` 路径漏掉 `maxNestingDepth` 校验 → 栈溢出 DoS | **已内置防护**：`from_str` 路径默认 128 层递归限制（serde_json PR #163），无已知绕过通告；仅有的 serde#3023 边缘情况（`IgnoredAny` 处理程序构造的 10 万层 `Value`）在本项目"解析自有 <100KB 元数据"的流程中不可达 |
+| CVE-2026-9563（Eclipse Parsson 无文档大小上限） | Java | 无默认 max 文档大小 → 超大文档耗尽 CPU/内存 | serde_json 默认同样无大小上限（各主流解析器共性），其危害前提是"解析攻击者可控的网络 JSON"——本项目解析的是**应用自生成的本地元数据**；另以 `read_json_capped()` 1MB 读入 guard 补齐纵深防御 |
+| QVD-2026-45876（Fastjson2 反序列化 RCE） | Java | `@type` AutoType 哈希碰撞绕过白名单 + `jar:` URL 类加载 → RCE | **结构性不可能**：Rust/serde 无多态反序列化——JSON 无 `@type` 机制、不从 JSON 加载类、无反身构造副作用，`Deserialize` 全为编译期实现，反序列化无法触发任意代码 |
+| USN-7973-1（cJSON 多个内存安全漏洞） | C | OOB 读/写、大数 DoS | 内存安全由 Rust 语言保证（`serde_json` unsafe 极少、无 OOB）；大数解析进 `f64`/`i64`/`u64`，无放大性分配 |
+
+**结论**：异步限制绕过/深度绕过/RCE/内存安全这几类 Java/C 生态漏洞，在 `serde_json` + Rust 内存模型下结构性不适用；唯一设计上同源的"无文档大小上限"以读入 guard 补齐。依赖层面的"无已知未修复漏洞"由 `cargo audit`（§12.1）持续验证。
 
 ### 6.9 服务编排：薄门面 + 按需命令化
 
-调用关系上做两件事，避免"UI 直接认识多个服务、一次操作多次跨层调用"（落地 [§2](#2-设计原则) 原则 2 / 原则 6；决策记录见 [D-07](decisions.md#d-07-薄门面与命令化)）：
+调用关系上做两件事，避免"UI 直接认识多个服务、一次操作多次跨层调用"（落地 §2 原则 2 / 原则 6）：
 
 **薄门面（Facade，v1 即生效）**：UI 层只依赖 `AppService` 一个入口，单次用户操作 = 单次门面调用，协调细节全部收敛在门面内：
 
@@ -367,7 +376,7 @@ while let Some(cmd) = queue.recv().await {
 
 **v1 边界**：仅"更新书籍"（SD-3）命令化；"添加书籍"（SD-1）先拆命名函数（`check_latest` / `fetch_to_temp` / `commit_and_tag` / `migrate_and_save`），出现并发/进度需求再升级为命令。
 
-**为什么不用全局中介者**：架构为分层树状（UI→服务→核心叶子，服务间几乎无互调），`UpdateService`/`PositionService` 本就是各自流程的中介者；再引入全局 hub 会令所有模块反向依赖一个中央对象，流程变隐式、难以测试与定位——净负收益，完整论证见 [D-07](decisions.md#d-07-薄门面与命令化)。
+**为什么不用全局中介者**：架构为分层树状（UI→服务→核心叶子，服务间几乎无互调），`UpdateService`/`PositionService` 本就是各自流程的中介者；再引入全局 hub 会令所有模块反向依赖一个中央对象，流程变隐式、难以测试与定位——是净负收益。
 
 ---
 
@@ -427,7 +436,11 @@ sequenceDiagram
 
 **结论：v1 起即以 gix（纯 Rust 的 git 实现）作为存储基座，每书一个 git 仓库，并以私有 tag 记录版本。** 版本历史 UI、多版本阅读、数据同步都不是 v1 功能，但存储基座一旦选定就应指向长期正确的那个——版本 tag 随每次抓取/更新**自然积累**，将来只需开放功能，而不用回头改造存储层。
 
-**为什么是 git/gix 而不是"目录快照 + 手写版本链"**：commit 承载内容快照、commit 图承载历史关系、**tag 承载"版本"语义**、ref（HEAD）= 当前指针、对象库内容寻址 = 去重与校验，历史读取 = 按需 checkout 单一工作区、未来数据同步直接复用 git 协议——版本管理需要的每一件事都被 git 封装好了，自建等于重写一个简化且不完整的 git。完整论证（含被否定的替代方案：目录快照 + COW、git2/libgit2、blob 直接读）见 [D-01 gix 存储基座](decisions.md#d-01-gix-存储基座)。
+**为什么是 git/gix 而不是"目录快照 + 手写版本链"：**
+
+- commit 承载内容快照、commit 图承载历史关系、**tag 承载"版本"语义**、ref（HEAD）= 当前指针、内容寻址对象库 = 去重与校验——版本管理需要的每一件事都被 git 封装好了；自己用目录 + `index.json` 实现，等于重写一个简化且不完整的 git
+- 历史版本读取 = 按需 checkout 到单一工作区，与日常 `git checkout` 完全一致，无空间累加
+- 未来若做**数据同步**，git 协议（fetch/push、partial clone 按需懒加载 blob）直接复用，无需自建传输层
 
 **诚实成本（gix 封装掉了解析，剩下的工程成本）：**
 
@@ -438,7 +451,13 @@ sequenceDiagram
 | 读历史版本 | checkout 目标 commit 到工作区；从对象库直接读 blob 为非必要优化 | 版本功能开放时按切换频率实测二选一 |
 | GC / 清理 | 初期"删除版本" = 仅删 tag，不清理 git 历史；后续真回收磁盘需 shallow 截断 + gc | 初期两场景一致（只删 tag）；shallow 回收延后，两场景统一作为用户设置项 |
 
-> 版本 tag 机制自 v1 生效（每次抓取/更新都打 tag，能力自然积累）；版本 UI / 多版本阅读（方案 D）/ 数据同步为后续里程碑开放的功能（见 [§8](#8-阅读位置在版本变动后的处理方案)、[§10](#10-里程碑)），开放时无需改造存储层，只需新增读取与展示。
+**被否定的替代方案：**
+
+- **全量目录快照 + COW 硬链接 + `index.json` 版本链**（早期规划）：需手写版本关系、去重、原子性，且无同步传输能力；空间收益（文件级去重）被 gix 对象库天然覆盖
+- **git2（libgit2）**：C 依赖，Android 交叉编译麻烦，排除
+- **blob 直接读（对象解析桥）作为历史读取主路径**：不必要——单一工作区 checkout 已满足"切状态阅读"，且不占额外空间（该能力现定义为与工作区直读互斥的可选资源通道，见 §12.1；v1 默认不引入，历史读取仍走 checkout）
+
+> 版本 tag 机制自 v1 生效（每次抓取/更新都打 tag，能力自然积累）；版本 UI / 多版本阅读（方案 D）/ 数据同步为后续里程碑开放的功能（见 §8、§10），开放时无需改造存储层，只需新增读取与展示。
 
 ---
 
@@ -537,7 +556,7 @@ sequenceDiagram
 - 历史版本读取 = 按需 checkout 目标 tag 指向的 commit 到工作区（单一工作区，无空间累加）
 - 应用级元数据（`library.json`/`progress.json`）位于仓库之外，避免与版本内容混存
 
-> `<数据根>` 平台相关：Android 通过 `android_activity`/JNI 取 `getFilesDir()`（应用私有目录）；Windows 用 `std::env::current_exe()` 取 **exe 同目录**（便携式：不存在则 `create_dir_all`，**目录不可写直接报错，不回退**到系统用户目录）。core 只见 `bookstore/` 这一层，数据根解析在 `mdor-app` 启动时 cfg 分支完成（决策记录见 [D-13 数据目录注入](decisions.md#d-13-数据目录注入)）。
+> `<数据根>` 平台相关：Android 通过 `android_activity`/JNI 取 `getFilesDir()`（应用私有目录）；Windows 用 `std::env::current_exe()` 取 **exe 同目录**（便携式：不存在则 `create_dir_all`，**目录不可写直接报错，不回退**到系统用户目录）。core 只见 `bookstore/` 这一层，数据根解析在 `mdor-app` 启动时 cfg 分支完成。
 
 ---
 
@@ -546,70 +565,13 @@ sequenceDiagram
 | 阶段 | 内容 | 验证方式 |
 |---|---|---|
 | **M0** | 桌面开发环境搭建（VS/MSVC、rust-toolchain、dioxus-cli；android targets/JDK/SDK/NDK 留待 M6） | `dx serve --platform desktop` 跑通 |
-| **M1** | workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架骨架（中文 UI）+ 轻量 `ci.yml`（core-quality：fmt/clippy/test/audit） | `cargo test -p mdor-core` / `cargo run` / CI 全绿 |
-| **M2** | `StaticSiteSource` + 递归镜像下载（自建链 + 版本 tag；`fixtures/mdbook-static/` 集成测试 + httpmock） | 用真实 mdBook 站点离线镜像 |
+| **M1** | 脚手架：core 模块 + trait + 存储层（gix 基座）+ 书架骨架（中文 UI）+ 挂轻量 `ci.yml`（fmt/clippy/test/audit） | `cargo run` / `cargo test` / CI 全绿 |
+| **M2** | `StaticSiteSource` + 递归镜像下载 | 用真实 mdBook 站点离线镜像 |
 | **M3** | 阅读器：内容抽取、资源协议、目录抽屉、滚动进度 | 桌面全流程 + 自适应布局验证（窗口缩至手机宽度） |
-| **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染（`fixtures/github-sample/` + httpmock） | 真实仓库测试 |
+| **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染 | 真实仓库测试 |
 | **M5** | 版本功能开放：版本历史 UI + 按需 checkout 多版本阅读 + SnapshotMigrator（方案 D）+ 清理策略（初期删版本 tag；后续 shallow 截断 + gc 为可选设置项，两场景统一） | 修改源站后更新，验证旧版本位置可回放 |
 | **M6** | Android 打包（APK）、权限/存储目录/cleartext 配置 | 模拟器/真机验证 + 真机触控交互验证（滑动/返回/安全区/WebView/性能） |
 | **M7** | CI 与发布（GitHub Actions）：设计补充 + 落地 `ci.yml`（core-quality / windows-desktop-check / android-check）+ `release.yml`（tag 触发，签名 APK + Windows 桌面 exe）+ CI 与本地工具链解耦说明 | 打一个 tag 触发 CI 产出双平台 artifact；PR 自动跑质量与双平台编译检查 |
-
-### 10.1 M6 真机验证清单
-
-> 维持 Dioxus WebView 方案的前提下，把剩余 WebView 相关风险归拢为 M6 真机验证与打包配置项（2026-08-09 决策，自原 `diff.md` §9 迁入）。多数已在前文给出方案，此处为实施清单。
-
-#### 宿主与内核
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| A1 | 真机 API < 30 崩溃 `NoSuchMethodError getCurrentWindowMetrics` | [env.md §6](env.md#6-故障排查速查) | `Dioxus.toml` 设 `min_sdk_version = 30` |
-| A2 | System WebView 版本碎片化 → 渲染差异 | [diff.md §2.3](diff.md#23-逐维度对比)「内核版本与渲染一致性」 | 内联书籍 CSS 对冲；真机对比不同 WebView 版本的书页排版 |
-| A3 | 桌面 WebView2 与 Android System WebView 渲染不一致 | 同上 | 同一书页双端截图对比（字体/图片/代码高亮） |
-
-#### 本地资源通道（tiny_http）
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| B1 | 服务器跑主线程卡 UI | [diff.md §2.3](diff.md#23-逐维度对比)「本地 http 方案的 Android 限制与对策」 | `tiny_http` 独立线程池，主线程不阻塞 |
-| B2 | 端口冲突 | 同上 | `bind("127.0.0.1:0")` 动态端口，先于渲染确定并写入重写 URL |
-| B3 | cleartext 明文被 Android 9+ 拦截 | [diff.md §5.1](diff.md#51-背景知识http-的明文与-app-网络策略) | network security config 白名单**仅放行 127.0.0.1**，不全局放开 |
-| B4 | INTERNET 权限缺失 bind 失败 | [diff.md §2.3](diff.md#23-逐维度对比) | manifest 声明（reqwest 本就需要） |
-| B5 | 目录穿越 `../` 读任意文件 | [diff.md §2.3](diff.md#23-逐维度对比)「重写规则与一一对应」 | URL 规范化 + 书根内白名单校验 |
-| B6 | 切版本后同路径资源吃旧缓存 | [D-04](decisions.md#d-04-本地资源分发)「URL 不带版本号」 | 服务器统一 `Cache-Control: no-store` |
-| B7 | 阅读页样式分发方式未定 | [D-06](decisions.md#d-06-静态资源分流) | **M3 敲定**：`include_bytes!` 内嵌 vs 首启复制，二选一 |
-| B8 | 进程被杀，服务器随进程消失 | [diff.md §2.3](diff.md#23-逐维度对比) | 阅读页前台期间依赖存在；不常驻 Service |
-
-#### 线程纪律
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| C1 | tokio 后台任务直接碰 UI 崩溃 | [diff.md §2.3](diff.md#23-逐维度对比)「线程模型」 | 所有 UI 更新切回主线程；创建 WebView 必须在主线程 |
-| C2 | Android 生命周期（被杀/恢复）与命令中断续做 | [§6.9](#69-服务编排薄门面-按需命令化) | `UpdateBookCommand` 携带阶段，重试跳过已完成步骤 |
-
-#### 真机交互
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| D1 | 触摸滚动与渲染性能 | [§10](#10-里程碑) M6 | 真机长文档滚动帧率/流畅度实测 |
-| D2 | Android 返回键 / 手势返回 | [§3.3](#33-ui-平台自适应设计移动优先-桌面壳) | 返回键优先级：阅读页 → 目录 → 书架 |
-| D3 | 安全区（状态栏/导航栏避让） | [§3.3](#33-ui-平台自适应设计移动优先-桌面壳) | WebView 内容避让 + 底部导航适配 |
-| D4 | 切版本与渲染协调 | [§11](#11-风险与待定项) | 先加载章节到内存再 checkout，或切换后 reload |
-
-#### 渲染形态
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| E1 | `dangerous_inner_html` 不执行 `<script>` | [§11](#11-风险与待定项) | 由 Dioxus 自绘 TOC/导航替代（预期行为），验证书页无功能缺失 |
-| E2 | 本地 http 与 App 页面跨源 | [diff.md §2.3](diff.md#23-逐维度对比)「本地 http 方案的 Android 限制与对策」 | 仅子资源加载，无 iframe/读写，无需 CORS 头 |
-| E3 | DevTools 调试 | [diff.md §2.3](diff.md#23-逐维度对比)「开发调试体验」 | `chrome://inspect` + adb 远程调试 |
-
-#### 双端对齐
-
-| # | 风险 | 依据 | 验证/落地 |
-|---|---|---|---|
-| F1 | 桌面与 Android 行为一致性 | [diff.md §8.3](diff.md#83-对-mdor-的落地影响) | core 桌面 `cargo test` 已覆盖；app 层差异 M6 真机回归 |
-
-> 状态划分：**B7 为 M3 实现决策**（未定）；**A1 / B3 / B4 为 M6 打包配置项**；其余为 M6 真机验证项。
 
 ---
 
@@ -617,7 +579,7 @@ sequenceDiagram
 
 | 风险/待定 | 影响 | 应对 |
 |---|---|---|
-| 本地资源分发通道（原"wry 自定义协议在 Android 的兼容性"） | 阅读页图片/资源加载 | **已决策**（[D-04](decisions.md#d-04-本地资源分发)）：两端统一本地 `tiny_http` 服务器 + `http://127.0.0.1:PORT` 绝对 URL；自定义 scheme 降级为后续可选，见 [diff.md §2.3](diff.md#23-逐维度对比) |
+| 本地资源分发通道（原"wry 自定义协议在 Android 的兼容性"） | 阅读页图片/资源加载 | **已决策（2026-08-09）**：两端统一本地 `tiny_http` 服务器 + `http://127.0.0.1:PORT` 绝对 URL；自定义 scheme 降级为后续可选，见 `doc/diff.md` §2.3/§2.4 |
 | Android 数据目录获取 | 存储路径 | JNI `getFilesDir()`；桌面走 exe 同目录 `data/`（便携式） |
 | mdBook 高级扩展（`{{#playground}}`、LaTeX、mermaid） | GitHub 源渲染保真度 | 首版仅支持 `{{#include}}`，其余列出 |
 | `dangerous_inner_html` 不执行 `<script>` | 搜索/导航原生 JS 失效 | 由 Dioxus 自绘 TOC/导航替代（预期行为） |
@@ -627,7 +589,7 @@ sequenceDiagram
 | 版本历史的存储占用 | 设备空间 | gix 对象库内容寻址去重；保留最近 N 版初期只删版本 tag（历史与对象保留），后续磁盘回收统一做 shallow 截断 + gc（用户可选设置） |
 | 上游仓库体积 / Git LFS | 场景1 磁盘占用与图片渲染 | 依赖 gix 对象去重；LFS 仓库 clone 仅得指针文件，首版提示暂不支持 |
 | 静态站点镜像边界 | 防止越界爬取 | 限同源 + 深度/大小上限 |
-| 大小写碰撞物理冲突（`Foo.md` vs `foo.md`） | Windows NTFS 只能落一个文件 | tree 级检测（平台无关）；同 blob 归一；异 blob 两选项（双渲染+标注 默认 / 报错）；Windows 接受单渲染+标注退化；跨平台真双渲染绑定可选"blob 直接读"能力（[D-10](decisions.md#d-10-资源读取通道)，默认不引入） |
+| 大小写碰撞物理冲突（`Foo.md` vs `foo.md`） | Windows NTFS 只能落一个文件 | tree 级检测（平台无关）；同 blob 归一；异 blob 两选项（双渲染+标注 默认 / 报错）；Windows 接受单渲染+标注退化；跨平台真双渲染绑定可选"blob 直接读"能力（§12.1，默认不引入） |
 
 ---
 
@@ -707,37 +669,29 @@ mdor/
 
 ### 12.1 关键设计决策
 
+- **数据目录注入而非硬编码**：`BookStore::new(base_dir)` 接收路径；`mdor-app` 启动时按平台解析数据根——Android 走 JNI `getFilesDir()`，Windows 走 `std::env::current_exe()` 的 **exe 同目录**（便携式：`data/bookstore` 不存在则创建，不可写直接报错，不回退到系统用户目录），core 保持平台无关（对应 §11 风险项）。
 - **核心与 UI 解耦验证**：全部业务逻辑（含渲染管线）在 core，`mdor-app` 只做「拿到 HTML 注入 + 交互」；验证方式即 `cargo test -p mdor-core` 桌面直跑。
+- **薄门面 = UI 唯一入口**：UI 层只依赖 `AppService`，单次用户操作 = 单次门面调用（`add_book(url)`、`open_reading(book_id)`），detect / 版本定位 / 进度保存等编排收敛在门面内，UI 依赖数从 O(服务数) 降到 O(1)。不引入全局中介者——架构为分层树状、服务间几乎无互调，`UpdateService`/`PositionService` 已是各自流程的中介者，再加全局 hub 会成上帝对象（见 §6.9）。
+- **长流程命令化 = 按需而非全局**：命令对象封装"一次完整流程"，经命令队列串行执行（落实 §6.7 单写者），可汇报进度、可携带中断点（重试跳过已完成步骤）。v1 仅"更新书籍"（SD-3）命令化；短流程（删除书籍、progress 读写）保持普通函数；"添加书籍"先用拆命名函数（§6.9）。
+- **本地资源分发（已决策 2026-08-09）**：阅读页本地资源两端统一经 app 侧本地 `tiny_http` 服务器分发（`http://127.0.0.1:PORT` 绝对 URL），核心放 `render/resources.rs`（URL→文件路径映射，可插拔）；自定义 `mdor-book://` 为后续可选功能。渲染形态 = `dangerous_inner_html` 注入（不用 iframe）。依据与背景见 `doc/diff.md` §2.3/§2.4。
+- **资源读取通道可插拔 + blob 直接读为可选能力（互斥二选一，默认工作区直读）**：默认通道 = **工作区直读**（`render/resources.rs` 的 URL→文件路径映射，本地 `tiny_http` 读磁盘字节）；**blob 直接读**（URL→blob oid，从 git 对象库读字节）为可选能力，与工作区直读**互斥、不并行**——要么这个要么那个，最多做成插件化通道，经设置选项二选一。该能力绑定的收益：① 大小写碰撞边界（`Foo.md`/`foo.md`）的跨平台一致——默认工作区直读时 Windows（NTFS 只能落一个文件）接受"单渲染+标注"退化（`doc/diff.md` §4.5.5-3），开启 blob 直接读后两端都能真双渲染；② 顺带复用：历史版本直接服务（`doc/diff.md` §2.3"未来可加回"的 `<version>` 寻址）与数据同步懒加载 blob（§7.4）。现状：v1 不引入，保持工作区直读。
+  - **接口可行性（gix 现成）**：读 blob 是 gix 一等公民——`repo.find_blob(oid)` → `Blob { data: Vec<u8> }`（另有 `FindExt::find_blob(id, &mut buf)` 复用 buffer）；路径→oid 用 `repo.tree(id).traverse()`（或 `find_tree_entry_by_path`）；pack 解压/delta 链解析已由 gix 封装。实现复杂度集中在**映射与缓存**，不在读取本身：`resources.rs` 的 URL→规范化路径逻辑不变，只多一步"路径→oid"（v1 服务 HEAD 的 tree，或 ingest 时预建 path→oid 索引），缓存用 gix buffer 复用 API；资源服务器改为持有 gix 对象访问即可，通道接口不变（互斥二选一正是可插拔预留点）。**收益**：① 碰撞边界跨平台一致（Windows 真双渲染）；② 服务字节=对象库权威字节，无工作区竞态（§2.3"声称值 vs 保证值"消解）；③ 免 checkout 服务任意版本（M5 铺路）；④ 与同步懒加载 blob（§7.4）复用同一能力；⑤ 渲染不受 Windows checkout 的路径长度/大小写坑影响。**代价**：对象库读取慢于文件读（大内容需缓存）；服务器引入对象访问（gix 本就是 core 依赖）；与工作区直读互斥、经选项切换，不并行。
 - **异步运行时**：core 用 tokio；reqwest 配 rustls（Android 无 OpenSSL）。
 - **依赖版本统一**：reqwest / scraper / pulldown-cmark / serde / gix 等在根 `[workspace.dependencies]` 钉一次。
-
-**决策摘要表**（各决策的背景 / 依据 / 影响见 [decisions.md](decisions.md)）：
-
-| 决策 | 状态 | 决策记录 |
-|---|---|---|
-| 存储基座 = gix（每书一个 git 仓库，链 + tag 统一版本），day-one 引入；历史版本读取统一走"按需 checkout 单一工作区" | 已决策 | [D-01](decisions.md#d-01-gix-存储基座) |
-| 元数据 = JSON 文件而非 SQLite（原子写 + 提交点 + 读入 guard；serde_json 安全对照） | 已决策 | [D-02](decisions.md#d-02-json-元数据而非-sqlite) |
-| 原子写 + fsync 按文件类型分层（`write_json_atomic` 的 `Durability`：`library.json`→Fsync，`progress.json`→RenameOnly） | 已决策 | [D-03](decisions.md#d-03-原子写与-fsync-分层) |
-| 本地资源分发：两端统一 `tiny_http` + `http://127.0.0.1:PORT` 绝对 URL（URL 不带版本号），自定义 scheme 降级可选 | 已决策 | [D-04](decisions.md#d-04-本地资源分发) |
-| 渲染形态 = `dangerous_inner_html` 注入（不用 iframe / `<base>`） | 已决策 | [D-05](decisions.md#d-05-渲染形态) |
-| App 静态资源分流：UI 走 `[asset]` 打包；阅读页样式随书资源同通道（分发分支 M3 敲定） | 部分待定 | [D-06](decisions.md#d-06-静态资源分流) |
-| 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [D-07](decisions.md#d-07-薄门面与命令化) |
-| 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [D-08](decisions.md#d-08-变更检测) |
-| gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [D-09](decisions.md#d-09-gix-三坑配置规避) |
-| 资源读取通道可插拔：工作区直读默认，blob 直接读可选（互斥二选一，v1 不引入） | 已决策 | [D-10](decisions.md#d-10-资源读取通道) |
-| TLS：rustls + `rustls-platform-verifier` + ring，gix 用 reqwest 后端 | 已决策 | [D-11](decisions.md#d-11-tls-与加密选型) |
-| 依赖安全审计 = `cargo audit`（零配置），不引入 `cargo deny` | 已决策 | [D-12](decisions.md#d-12-依赖与安全审计) |
-| 数据目录注入而非硬编码（Android `getFilesDir()` / Windows exe 同目录便携式，不回退） | 已决策 | [D-13](decisions.md#d-13-数据目录注入) |
-
-> 其中"blob 直接读"的接口可行性（gix `find_blob` / `tree.traverse()`）、收益与代价细节见 [D-10](decisions.md#d-10-资源读取通道)。
+- **依赖安全审计 = `cargo audit`（零配置）**：本地定期或 CI 跑，对照 RustSec Advisory Database（RUSTSEC），保证"无已知未修复漏洞"可持续验证而非一次性判断；漏洞存在时退出码非 0。**不引入 `cargo deny`**：许可证合规（licenses）对离线阅读器非刚需、来源检查（sources）冗余（依赖全来自 crates.io 且 `Cargo.toml` 自持）。若日后关心 APK 体积，用 cargo 自带 `cargo tree -d` 按需排查重复版本（multiple-versions），无需整套 deny。
+- **存储基座 = gix（每书一个 git 仓库，链 + tag 统一版本），day-one 引入**：场景1 clone/fetch 上游保留其历史、场景2 自建链 commit；用户版本 = 私有 tag `refs/mdor/versions/<seq>`、HEAD=当前指针、对象库=去重；版本/同步能力随每次抓取自然积累（打 tag 即记录版本），存储层无需将来改造（代价与取舍见 §7.4）。历史版本读取统一走"按需 checkout 单一工作区"，不引入 blob 直接读。
 
 ### 12.2 里程碑映射
 
-> 各里程碑的交付要点与验证方式已并入 [§10](#10-里程碑) 里程碑表；CI/发布落地见 [§12.3](#123-ci-与发布github-actions)。
+- **M1**：建 workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架壳 + **轻量 `ci.yml`（仅 core-quality：fmt/clippy/test/audit）** → `cargo test -p mdor-core` + 书架可跑 + CI 全绿
+- **M2 / M4**：补 `static_site.rs`（自建链 + 版本 tag）/ `github.rs`（clone 上游 + 版本 tag），用 `fixtures/` 做集成测试（HTTP mock：`httpmock` dev-dep）
+- **M5**：补 `migration/snapshot.rs`（方案 D）+ 版本历史 UI + checkout 切换 + 清理策略（初期删版本 tag；后续可选 shallow 截断 + gc，两场景统一）
+- **M6**：`mobile/` 生成 + Android 打包
+- **M7**：落地完整 CI + 发布（见 §12.3）——`ci.yml` 补 `windows-desktop-check` / `android-check`；`release.yml` tag 触发双平台产物（android 签名 APK + windows 桌面 exe）
 
 ### 12.3 CI 与发布（GitHub Actions）
 
-仓库公开，Actions 分钟全免（Linux/Windows 均计 0）。**CI 与本地工具链解耦**：本地保持 MSVC + 计划内依赖（[env.md §1](env.md#1-环境总览与版本矩阵)），CI 用原生 runner 默认工具链；**不引入 Zig**（无跨平台交叉编译需求）。
+仓库公开，Actions 分钟全免（Linux/Windows 均计 0）。**CI 与本地工具链解耦**：本地保持 MSVC + 计划内依赖（env.md §1），CI 用原生 runner 默认工具链；**不引入 Zig**（无跨平台交叉编译需求）。
 
 **`ci.yml`（PR / push 校验，M1 起先挂 core-quality，M7 补全）：**
 
@@ -754,8 +708,8 @@ mdor/
 
 **要点：**
 
-- rust-toolchain.toml 现为 M0 版（无 targets）；CI 用 `dtolnay/rust-toolchain` 显式装 `aarch64-linux-android` / `x86_64-linux-android` 双 target（对齐 [env.md §7](env.md#7-m0-到-m6-过渡清单补回-android-侧) toml 补回），release 构建只用 arm64。
-- CI 的 MSVC **不钉 14.50**：windows-latest 预装 VS Build Tools，Rust `find-msvc-tools` 自动识别即可；14.50 钉版仅服务本地可复现（[env.md §1](env.md#1-环境总览与版本矩阵)）。
+- rust-toolchain.toml 现为 M0 版（无 targets）；CI 用 `dtolnay/rust-toolchain` 显式装 `aarch64-linux-android` / `x86_64-linux-android` 双 target（对齐 env.md §7 toml 补回），release 构建只用 arm64。
+- CI 的 MSVC **不钉 14.50**：windows-latest 预装 VS Build Tools，Rust `find-msvc-tools` 自动识别即可；14.50 钉版仅服务本地可复现（env.md §1）。
 - 桌面产物仍需目标机 Win11 预装 WebView2；首版出 exe zip，`dx bundle` 安装包为可选增强。
 - 签名密钥与密码只存 GitHub Secrets，不入仓库。
 - 缓存：`Swatinem/rust-cache` + 缓存 dx 二进制（`cargo install dioxus-cli --locked` 是最耗时步骤）；`concurrency: cancel-in-progress` 取消重复 push。
