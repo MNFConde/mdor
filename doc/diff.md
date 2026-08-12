@@ -105,11 +105,11 @@ gix 的 HTTP 传输后端是**额外的平台差异点**：
 | 环节 | Windows（桌面开发） | Android（目标） |
 |---|---|---|
 | reqwest TLS 后端 | rustls（与 Android 一致） | rustls（必须，无 OpenSSL） |
-| 根证书 | `rustls-native-certs` 读系统库，或 platform-verifier | webpki-roots 打包，或 platform-verifier(JNI) |
+| 根证书 | `rustls-platform-verifier`（Windows 退回 SChannel，认系统/企业 CA） | `rustls-platform-verifier`（JNI 调系统 `X509TrustManager`，认用户/系统 CA） |
 | gix HTTP 传输 | reqwest 后端 | reqwest 后端（避免 curl C 依赖） |
 | 加密 provider | **`ring`**（轻量，免 cmake/perl） | 同左；`ring` 需 NDK clang 参与构建（NDK 自带，正常）；如需换 `aws-lc-rs` 见 §1.9 |
 
-**推荐统一方案**：两平台都用 `reqwest`（`default-features = false` + `rustls-tls`）+ `rustls-platform-verifier`，gix 开 `http-client-reqwest`。加密 provider 用 **`ring`**（轻量、构建简单、APK 体积小）；将来如需 FIPS / 更广算法面，按 §1.9 一行切换 `aws-lc-rs`。一份 Cargo 配置、一套信任逻辑，Windows/Android 行为一致；仅当"想要极致简单、放弃企业 CA"时才退回 webpki-roots。
+**统一方案（已决策，[D-11](decisions.md#d-11-tls-与加密选型)）**：两平台都用 `reqwest`（`default-features = false` + `rustls-tls`）+ `rustls-platform-verifier`，gix 开 `http-client-reqwest`。加密 provider 用 **`ring`**（轻量、构建简单、APK 体积小）；将来如需 FIPS / 更广算法面，按 §1.9 一行切换 `aws-lc-rs`。一份 Cargo 配置、一套信任逻辑，Windows/Android 行为一致；仅当"想要极致简单、放弃企业 CA"时才退回 webpki-roots。
 
 ### 1.7 选错的后果
 
@@ -285,7 +285,7 @@ Android 上跑本地 http 服务器不是没有限制，逐项列清并给对策
 
 → **决策（2026-08-09）**：App 静态资源分两类处理——App UI 资源走 Dioxus `[asset]` 打包；**阅读页样式与书籍资源同通道**统一经本地 http 分发。背景/结论/依据见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)。
 
-**实现分支（M3 待验证，2026-08-09 记录）**：阅读页样式要能被服务器分发，两条路二选一——`include_bytes!` 内嵌 / 首启复制到 `getFilesDir()`。讨论见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)，M3 实现时敲定。
+**决策（2026-08-13）**：阅读页样式 v1 定为 **`include_bytes!` 内嵌**——样式随二进制编译进包、服务器从内存直接吐，两端零分叉、无启动流程（依据与取舍见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)）。**将来若需主题热更新**（样式可下载/替换），再实现方案 2——首启/更新时把样式落盘到 `getFilesDir()`（Windows 为普通文件）替代内嵌；该扩展要求"样式资源提供者"收敛在 **app 层兼容层**（Android 读 APK `assets/` 需 JNI AssetManager、路径注入自运行时的 `getFilesDir()`；Windows 读普通文件），向 core 暴露统一接口，**不放平台差异进 core**。**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）。
 
 #### 内核版本与渲染一致性
 

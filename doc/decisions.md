@@ -15,7 +15,7 @@
 | [D-03](#d-03-原子写与-fsync-分层) | 原子写 + fsync 按文件类型分层（Fsync / RenameOnly） | 已决策 | [diff.md §7.2](diff.md#72-mdor-的取舍已决策-2026-08-09按文件类型分层) |
 | [D-04](#d-04-本地资源分发) | 本地资源分发 = tiny_http + `http://127.0.0.1:PORT`（URL 不带版本号） | 已决策 | [diff.md §2.3](diff.md#23-逐维度对比)、[project.md §6.5](project.md#65-renderservice) |
 | [D-05](#d-05-渲染形态) | 渲染形态 = `dangerous_inner_html` 注入（不用 iframe / `<base>`） | 已决策 | [diff.md §2.4](diff.md#24-对-mdor-的落地影响) |
-| [D-06](#d-06-静态资源分流) | App 静态资源分流；阅读页样式分发分支 M3 敲定 | 部分待定 | [diff.md §2.3](diff.md#23-逐维度对比) |
+| [D-06](#d-06-静态资源分流) | App 静态资源分流；阅读页样式内嵌定案（方案 1）；主题热更新走方案 2+兼容层（后续） | 已决策 | [diff.md §2.3](diff.md#23-逐维度对比) |
 | [D-07](#d-07-薄门面与命令化) | 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [project.md §6.9](project.md#69-服务编排薄门面-按需命令化) |
 | [D-08](#d-08-变更检测) | 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
 | [D-09](#d-09-gix-三坑配置规避) | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
@@ -135,13 +135,13 @@
 
 | 状态 | 日期 | 规范位置 |
 |---|---|---|
-| 部分待定 | 2026-08-09 | [diff.md §2.3「静态资源加载」](diff.md#23-逐维度对比) |
+| 已决策 | 2026-08-13 | [diff.md §2.3「静态资源加载」](diff.md#23-逐维度对比) |
 
 **背景**：App 有两类静态资源、被不同页面消费：① App 自身 UI（书架/设置/抽屉）的 CSS/字体/图标；② 阅读页要用的样式（书籍渲染 CSS、代码高亮主题）。前者由 Dioxus 渲染，后者是注入 HTML，WebView 加载时其 `<link>` 引用必须可访问。
 
 **决策**：App UI 资源走 Dioxus `[asset]` 打包（`asset!()` 宏两平台自动适配，Android 进 APK assets，无平台差异）；**阅读页样式与书籍资源同通道**，统一经本地 http 分发（从 `assets/` 样式目录映射，或随书存储分发）。
 
-**待定子项（M3 敲定）**：阅读页样式要能被服务器分发，两条路二选一——① **内嵌进二进制**（样式体积小（几 KB），`include_bytes!`/`include_str!` 内嵌，服务器从内存直接吐，倾向此路）；② **首启复制**到 `getFilesDir()`，服务器照常读磁盘。Android 上"随 App 分发"的样式打进的是 APK（zip），Rust 无法像读普通文件那样读 APK 内部（需 JNI AssetManager）。
+**决策（2026-08-13）**：v1 定为 **方案 1——`include_bytes!` 内嵌**（样式体积小（几 KB），服务器从内存直接吐，两端零分叉、无启动流程）。**将来若需主题热更新**（样式可下载/替换），再实现 **方案 2——首启/更新时落盘 `getFilesDir()`** 替代内嵌（Android 上"随 App 分发"的样式打进的是 APK（zip），Rust 无法像读普通文件那样读 APK 内部，需 JNI AssetManager 读出后写入私有目录）。方案 2 / 主题热更新的平台差异（Android JNI AssetManager 读 APK、路径注入自运行时 `getFilesDir()`；Windows 读普通文件）**收敛在 app 层兼容层**，向 core 提供统一"样式资源提供者"接口，**不放平台差异进 core**；**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）。
 
 **影响**：`Dioxus.toml [asset]` 只服务于 App UI，不承担阅读页样式；两端 `<link>` 引用 URL 形态统一，core 无分叉。
 
@@ -199,7 +199,7 @@ gix status 唯一的独有优势是"检测层对任意配置免疫"，但前提�
 
 **背景**：§4.3 三个 Windows 特有坑（长路径 / 大小写 / autocrlf）需在 gix 配置侧规避，但 gix 是库而非 CLI、没有 `git config` 命令，且三坑性质不同不能一刀切。**关键风险——全局约定是毒药**：gix 会读到用户机器全局配置（Git for Windows 常写 system 级 `core.autocrlf=true`，实锤案例 helix #6467），mdor 要求工作区字节 = 上游字节，任何 CRLF 转换都破坏它，且与 Android 行为不一致——不能靠"用户改全局配置"这类约定，必须由 mdor 主动在更高优先级压掉。
 
-**决策（推荐方向，待 M1 实测后敲定）**：A + B 叠加，收敛到两个施加点：
+**决策（推荐方向，待 M1 实测后敲定）**：A + B 叠加收敛到**两个配置施加点**，另有大小写冲突处理定案：
 
 1. **snapshot.rs 的 clone/init 路径**：成功后、checkout 前执行 `apply_windows_safety_config()`，写 repo-local：`core.autocrlf=false`（必须）、`core.longpaths=true`（防御 + git CLI 互操作）；`core.ignorecase` 交给 gix 探测（Windows 上确认自动为 true）。
 2. **AppService 统一仓库打开入口**：`config_overrides` 兜底 `core.autocrlf=false`，保证进程内行为确定。

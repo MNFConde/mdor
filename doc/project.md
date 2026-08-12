@@ -576,7 +576,7 @@ sequenceDiagram
 | B4 | INTERNET 权限缺失 bind 失败 | [diff.md §2.3](diff.md#23-逐维度对比) | manifest 声明（reqwest 本就需要） |
 | B5 | 目录穿越 `../` 读任意文件 | [diff.md §2.3](diff.md#23-逐维度对比)「重写规则与一一对应」 | URL 规范化 + 书根内白名单校验 |
 | B6 | 切版本后同路径资源吃旧缓存 | [D-04](decisions.md#d-04-本地资源分发)「URL 不带版本号」 | 服务器统一 `Cache-Control: no-store` |
-| B7 | 阅读页样式分发方式未定 | [D-06](decisions.md#d-06-静态资源分流) | **M3 敲定**：`include_bytes!` 内嵌 vs 首启复制，二选一 |
+| B7 | 阅读页样式分发方式（v1 内嵌已定；主题热更新将来走方案 2+兼容层） | [D-06](decisions.md#d-06-静态资源分流) | **已决策（2026-08-13）**：`include_bytes!` 内嵌；将来主题热更新再实现首启复制（需 app 层兼容层抹平平台差异，清单后续整理） |
 | B8 | 进程被杀，服务器随进程消失 | [diff.md §2.3](diff.md#23-逐维度对比) | 阅读页前台期间依赖存在；不常驻 Service |
 
 #### 线程纪律
@@ -609,7 +609,7 @@ sequenceDiagram
 |---|---|---|---|
 | F1 | 桌面与 Android 行为一致性 | [diff.md §8.3](diff.md#83-对-mdor-的落地影响) | core 桌面 `cargo test` 已覆盖；app 层差异 M6 真机回归 |
 
-> 状态划分：**B7 为 M3 实现决策**（未定）；**A1 / B3 / B4 为 M6 打包配置项**；其余为 M6 真机验证项。
+> 状态划分：**A1 / B3 / B4 为 M6 打包配置项**；其余为 M6 真机验证项。
 
 ---
 
@@ -628,6 +628,7 @@ sequenceDiagram
 | 上游仓库体积 / Git LFS | 场景1 磁盘占用与图片渲染 | 依赖 gix 对象去重；LFS 仓库 clone 仅得指针文件，首版提示暂不支持 |
 | 静态站点镜像边界 | 防止越界爬取 | 限同源 + 深度/大小上限 |
 | 大小写碰撞物理冲突（`Foo.md` vs `foo.md`） | Windows NTFS 只能落一个文件 | tree 级检测（平台无关）；同 blob 归一；异 blob 两选项（双渲染+标注 默认 / 报错）；Windows 接受单渲染+标注退化；跨平台真双渲染绑定可选"blob 直接读"能力（[D-10](decisions.md#d-10-资源读取通道)，默认不引入） |
+| 兼容层平台差异清单（方案 2/主题热更新前置，[D-06](decisions.md#d-06-静态资源分流)） | 样式资源提供者的平台差异（JNI AssetManager / `getFilesDir()` 注入） | 方案 2 落地时先整理清单再设计接口，兼容层收敛差异、core 保持平台无关 |
 
 ---
 
@@ -720,7 +721,7 @@ mdor/
 | 原子写 + fsync 按文件类型分层（`write_json_atomic` 的 `Durability`：`library.json`→Fsync，`progress.json`→RenameOnly） | 已决策 | [D-03](decisions.md#d-03-原子写与-fsync-分层) |
 | 本地资源分发：两端统一 `tiny_http` + `http://127.0.0.1:PORT` 绝对 URL（URL 不带版本号），自定义 scheme 降级可选 | 已决策 | [D-04](decisions.md#d-04-本地资源分发) |
 | 渲染形态 = `dangerous_inner_html` 注入（不用 iframe / `<base>`） | 已决策 | [D-05](decisions.md#d-05-渲染形态) |
-| App 静态资源分流：UI 走 `[asset]` 打包；阅读页样式随书资源同通道（分发分支 M3 敲定） | 部分待定 | [D-06](decisions.md#d-06-静态资源分流) |
+| App 静态资源分流：UI 走 `[asset]` 打包；阅读页样式随书资源同通道、`include_bytes!` 内嵌分发（主题热更新将来走方案 2+兼容层） | 已决策 | [D-06](decisions.md#d-06-静态资源分流) |
 | 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [D-07](decisions.md#d-07-薄门面与命令化) |
 | 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [D-08](decisions.md#d-08-变更检测) |
 | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [D-09](decisions.md#d-09-gix-三坑配置规避) |
