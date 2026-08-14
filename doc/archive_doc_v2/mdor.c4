@@ -29,7 +29,7 @@ model {
     description '上游仓库 git 历史 / commit SHA'
   }
   fs = external-system '设备本地存储' {
-    description 'library.json / progress.json / books/<id>/（gix 仓库 .git + 工作区 + 未被 git 跟踪的 .mdor/ 元数据）'
+    description 'library.json / progress.json / books/<id>/（gix 仓库 .git + 工作区 + 仓库外 .mdor/ 元数据）'
   }
 
   mdor = system 'mdor Android 应用 (Dioxus + WebView)' {

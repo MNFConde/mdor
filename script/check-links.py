@@ -5,9 +5,11 @@
   uv run --directory script check-links.py
   uv run --directory script check-links.py --doc-root <doc目录>
 
-对 project.md / decisions.md / env.md / diff.md 中形如 `](…md#anchor)` 的跨文件链接
-与形如 `](#anchor)` 的站内链接, 逐一与目标文件标题生成的 GitHub slug 比对;
-有任何不匹配时列出并返回 exit code 1 (供 CI/本地检查).
+扫描 doc/ 顶层全部 *.md（不递归，自然排除 archive_doc_v* 子目录）;
+解析时跳过 fenced code block 与行内反引号代码，避免把示例代码当链接校验。
+对形如 `](…md#anchor)` 的跨文件链接与形如 `](#anchor)` 的站内链接,
+逐一与目标文件标题生成的 GitHub slug 比对; 有任何不匹配时列出并返回
+exit code 1 (供 CI/本地检查).
 """
 
 import argparse
@@ -16,11 +18,10 @@ import sys
 import unicodedata
 from pathlib import Path
 
-FILES = ("project.md", "decisions.md", "env.md", "diff.md")
-
-HEADING_RE = re.compile(r"^#{1,4} ")
+HEADING_RE = re.compile(r"^#{1,6} ")
 LINK_RE = re.compile(r"\]\(([^)]+)\)")
 TARGET_RE = re.compile(r"^([^#]*)#(.+)$")
+INLINE_CODE_RE = re.compile(r"`[^`]*`")
 
 
 def github_slug(heading: str) -> str:
@@ -53,21 +54,33 @@ def main() -> int:
     args = parser.parse_args()
 
     root = args.doc_root
+    # doc/ 顶层全部 .md 既是扫描对象，也是合法的跨文件链接目标（glob 不递归）
+    files = sorted(p.name for p in root.glob("*.md"))
     cache: dict[str, list[str]] = {}
     issues: list[tuple[str, int, str, str]] = []
     checked = 0
 
-    for file in FILES:
+    for file in files:
         lines = (root / file).read_text(encoding="utf-8").splitlines()
         self_head = cache.setdefault(file, headings_of(root / file))
+        in_fence = False
         for i, line in enumerate(lines):
-            for m in LINK_RE.finditer(line):
+            if line.startswith("```"):
+                # 围栏行只翻转状态，本身不提取链接
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                # 围栏（代码块/mermaid 块）内的行跳过
+                continue
+            # 先剔除行内反引号代码片段，避免把 `[文本](#锚点)` 之类当链接校验
+            text = INLINE_CODE_RE.sub(" ", line)
+            for m in LINK_RE.finditer(text):
                 inner = m.group(1).strip()
                 tm = TARGET_RE.match(inner)
                 if not tm:
                     continue
                 target, anchor = tm.group(1).strip(), tm.group(2)
-                is_cross = target in FILES
+                is_cross = target in files
                 is_internal = target == ""
                 if not (is_cross or is_internal):
                     continue

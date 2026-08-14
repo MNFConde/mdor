@@ -16,9 +16,9 @@
 
 **已决策（详见 [decisions.md](decisions.md)）**：
 
-- [【当前】 资源分发通道：统一本地 tiny_http 服务器](decisions.md#统一本地-http-服务器分发)：两端统一本地 `tiny_http` 服务器（进程归 app 层）+ `http://127.0.0.1:PORT` 绝对 URL（[D-04](decisions.md#d-04-本地资源分发)）；`mdor-book://` 自定义 scheme [【备选】 mdor-book:// 自定义 scheme](decisions.md#mdor-book-自定义-scheme)
+- **`【当前】`资源分发通道**：两端统一本地 `tiny_http` 服务器（进程归 app 层）+ `http://127.0.0.1:PORT` 绝对 URL（[D-04](decisions.md#d-04-本地资源分发)）；`mdor-book://` 自定义 scheme `**【备选 · 触发：用户启用"资源通道"设置项】**`
 - **渲染形态**：`dangerous_inner_html` 注入 + 绝对 http URL 重写（不用 iframe、不用 `<base>`）（[D-05](decisions.md#d-05-渲染形态)）
-- **App 静态资源**：UI 资源走 Dioxus `[asset]` 打包；阅读页样式 [【当前】 include_bytes! 内嵌](decisions.md#方案-1-includebytes-内嵌)（[D-06](decisions.md#d-06-静态资源分流)）
+- **App 静态资源**：UI 资源走 Dioxus `[asset]` 打包；阅读页样式随书籍资源同通道分发（[D-06](decisions.md#d-06-静态资源分流)）
 - **其余**：gix 基座（[D-01](decisions.md#d-01-gix-存储基座)）、JSON 非 SQLite（[D-02](decisions.md#d-02-json-元数据而非-sqlite)）、fsync 分层（[D-03](decisions.md#d-03-原子写与-fsync-分层)）、TLS 选型（[D-11](decisions.md#d-11-tls-与加密选型)）、变更检测（[D-08](decisions.md#d-08-变更检测)）
 
 ---
@@ -109,10 +109,7 @@ gix 的 HTTP 传输后端是**额外的平台差异点**：
 | gix HTTP 传输 | reqwest 后端 | reqwest 后端（避免 curl C 依赖） |
 | 加密 provider | **`ring`**（轻量，免 cmake/perl） | 同左；`ring` 需 NDK clang 参与构建（NDK 自带，正常）；如需换 `aws-lc-rs` 见 §1.9 |
 
-#### 统一方案 reqwest + rustls + platform-verifier
-> [!IMPORTANT] 【当前】 统一方案（已决策，[D-11](decisions.md#d-11-tls-与加密选型)）
-> 
-> 两平台都用 `reqwest`（`default-features = false` + `rustls-tls`）+ `rustls-platform-verifier`，gix 开 `http-client-reqwest`。加密 provider 用 **ring**（轻量、构建简单、APK 体积小）；一份 Cargo 配置、一套信任逻辑，Windows/Android 行为一致。两个备选切换点见 [D-11](decisions.md#d-11-tls-与加密选型)：加密 provider 换 [【备选】 aws-lc-rs](decisions.md#加密-provider-aws-lc-rs)（触发：需 FIPS / 更广算法面，§1.9 一行切换）；根证书退回 [【备选】 webpki-roots](decisions.md#根证书-webpki-roots)（触发：放弃企业 CA）。
+**`【当前】`统一方案（已决策，[D-11](decisions.md#d-11-tls-与加密选型)）**：两平台都用 `reqwest`（`default-features = false` + `rustls-tls`）+ `rustls-platform-verifier`，gix 开 `http-client-reqwest`。加密 provider 用 **`【当前】`ring**（轻量、构建简单、APK 体积小）；将来如需 FIPS / 更广算法面，按 §1.9 一行切换 **`【备选 · 触发：需 FIPS / 更广算法面】`aws-lc-rs**。一份 Cargo 配置、一套信任逻辑，Windows/Android 行为一致；仅当"想要极致简单、放弃企业 CA"时才退回 **`【备选 · 触发：放弃企业 CA】`webpki-roots**。
 
 ### 1.7 选错的后果
 
@@ -195,7 +192,7 @@ Rust 与网页通过桥接双向通信。**"WebView 宿主差异"的本质**：�
 
 → 这就是 `tiny_http` 备选的原因：Android 上起本地 HTTP 服务，用 `http://127.0.0.1:PORT` 加载资源。两平台原生支持 http，行为统一，绕开 scheme 兼容问题；代价是本地端口管理、需绑 127.0.0.1 防外访问。
 
-**决策（2026-08-09）**：[【当前】 两端统一走本地 HTTP 服务器分发](decisions.md#统一本地-http-服务器分发)；[【备选】 自定义 scheme 降级为后续可选](decisions.md#mdor-book-自定义-scheme)——背景/结论/依据见 [D-04 本地资源分发](decisions.md#d-04-本地资源分发)。
+**决策（2026-08-09）**：**`【当前】`** 两端统一走本地 HTTP 服务器分发，自定义 scheme **`【备选 · 触发：用户启用"资源通道"设置项】`** 降级为后续可选功能——背景/结论/依据见 [D-04 本地资源分发](decisions.md#d-04-本地资源分发)。
 
 #### 为什么是 http 而非 file://（正则重写为何不选）
 
@@ -286,20 +283,9 @@ Android 上跑本地 http 服务器不是没有限制，逐项列清并给对策
 | 资源来源 | 直接读磁盘文件 | 打包进 APK `assets/`，用 `file:///android_asset/...` 或 `content://` |
 | 文件访问 | WebView2 能读本地文件 | WebView 默认**禁读任意文件路径**（安全沙箱） |
 
-→ **决策（2026-08-09，已由下方 2026-08-13 决策覆盖）**：App 静态资源分两类处理——App UI 资源走 Dioxus `[asset]` 打包；阅读页样式**原拟**"与书籍资源同通道"统一经本地 http 分发。背景/结论/依据见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)。
+→ **决策（2026-08-09）**：App 静态资源分两类处理——App UI 资源走 Dioxus `[asset]` 打包；**阅读页样式与书籍资源同通道**统一经本地 http 分发。背景/结论/依据见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)。
 
-**决策（2026-08-13）**：
-
-##### 方案 1 include_bytes 内嵌
-> [!IMPORTANT] 【当前】 方案 1：include_bytes! 内嵌
-> 
-> 样式直接编进发布二进制、渲染时随章节 HTML 内联注入（**不经本地 http 服务器**；改主题 = 重新发布二进制），两端零分叉、无启动流程（依据与取舍见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)）。
-
-##### 方案 2 首启复制落盘
-> [!NOTE] 【备选】 方案 2：首启复制落盘
-> 触发：主题热更新（需样式可下载/替换）
-> 
-> 将来若需样式可下载/替换，首启/更新时把样式落盘到 `getFilesDir()`（Windows 为普通文件）替代内嵌；该扩展要求"样式资源提供者"收敛在 **app 层兼容层**（Android 读 APK `assets/` 需 JNI AssetManager、路径注入自运行时的 `getFilesDir()`；Windows 读普通文件），向 core 暴露统一接口，**不放平台差异进 core**。**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）——v1 内联无需该兼容层，仅备选方案 2 需要。
+**决策（2026-08-13）**：阅读页样式 v1 定为 **`【当前】方案 1——`include_bytes!` 内嵌**——样式直接编进发布二进制、渲染时随章节 HTML 内联注入（**不经本地 http 服务器**；改主题 = 重新发布二进制），两端零分叉、无启动流程（依据与取舍见 [D-06 静态资源分流](decisions.md#d-06-静态资源分流)）。**`【备选 · 触发：主题热更新】`将来若需样式可下载/替换**，再实现方案 2——首启/更新时把样式落盘到 `getFilesDir()`（Windows 为普通文件）替代内嵌；该扩展要求"样式资源提供者"收敛在 **app 层兼容层**（Android 读 APK `assets/` 需 JNI AssetManager、路径注入自运行时的 `getFilesDir()`；Windows 读普通文件），向 core 暴露统一接口，**不放平台差异进 core**。**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）——v1 内联无需该兼容层，仅备选方案 2 需要。
 
 #### 内核版本与渲染一致性
 

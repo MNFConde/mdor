@@ -278,7 +278,7 @@ pub struct MigratedPosition {
 统一渲染管线：
 - `StaticSite` 路径：读取章节 HTML → `scraper` 抽取 `<main id="content">` → 重写资源链接为本地绝对 URL（`http://127.0.0.1:PORT/books/<id>/<path>`，不带版本号，两端统一走本地 http 服务，见 [diff.md §2.3](diff.md#23-逐维度对比) / [D-04](decisions.md#d-04-本地资源分发)）→ `dangerous_inner_html` 注入（[D-05](decisions.md#d-05-渲染形态)）
 - `GitHub` 路径：读取 `.md` → `pulldown-cmark` → HTML → 同一注入管线
-- [【当前】 内联书籍 CSS（include_bytes! 内嵌）](decisions.md#方案-1-includebytes-内嵌)：样式经 `include_bytes!` 编入发布二进制，渲染时随 `<style>` 内联注入，不经本地 http 服务器（改主题 = 重新发布二进制；主题热更新走 [【备选】 方案 2：首启复制落盘](decisions.md#方案-2-首启复制落盘)，见 [D-06](decisions.md#d-06-静态资源分流)），保证代码高亮等样式一致
+- **`【当前】`内联书籍 CSS**：样式经 `include_bytes!` 编入发布二进制，渲染时随 `<style>` 内联注入，不经本地 http 服务器（改主题 = 重新发布二进制；主题热更新走备选方案 2，见 [D-06](decisions.md#d-06-静态资源分流)），保证代码高亮等样式一致
 
 **PORT 来源与本地服务器职责**（服务器进程归 `mdor-app`，详见 [§6.5.1](#651-本地子资源请求序列图-sd-5) / [§12.1](#121-关键设计决策)）：`LocalHttpServer` 用 `bind("127.0.0.1:0")` 动态端口，app 启动时起服并把 PORT 随 `AppService`/`AppContext` 注入；本渲染管线在内存中把 PORT 写入重写 URL。注入 HTML 后，WebView 向 `http://127.0.0.1:PORT/books/<id>/<path>` 请求子资源，由服务器经 core `resources.rs` 规范化/白名单校验后读工作区字节返回——两端统一，自定义 scheme `mdor-book://` 仅作备选（见 [D-04](decisions.md#d-04-本地资源分发)）。
 
@@ -479,33 +479,14 @@ sequenceDiagram
 
 ### 8.1 设计决策
 
-#### v1 行为：更新追最新（path 策略）
-> [!IMPORTANT] 【当前】 v1 行为：更新追最新，path 策略
-> 
-> v1 不开放版本历史 UI。更新后阅读位置**按章节路径映射**到新版本（`chapter_path` 不变则直连，章节消失则 TOC 顺序回退相邻章节）；位置在更新时即迁移，不存在"读旧版"路径。
+**`【当前】`v1 行为（更新追最新，`path` 策略）**：v1 不开放版本历史 UI。更新后阅读位置**按章节路径映射**到新版本（`chapter_path` 不变则直连，章节消失则 TOC 顺序回退相邻章节）；位置在更新时即迁移，不存在"读旧版"路径。
 
-#### 方案 D：版本快照绑定
-> [!NOTE] 【备选】 方案 D：版本快照绑定
-> 触发：M5 版本功能开放
-> 
-> 阅读位置与具体 commit 强绑定：
-> 
-> - 记录时绑定 `version_id`（commit sha，该记录的位置必然可回放）
-> - 更新后，位置仍指向旧版本 commit；用户从书架打开时，**默认继续读旧版本对应位置**，进度零丢失
-> - 支持同一文档**多版本并行阅读**（版本历史界面选择任意版本）
-> - 版本切换 = 按需 checkout 目标 tag 指向的 commit 到工作区；版本列表 = 列 `refs/mdor/versions/*`；清理策略（保留最近 N 版）在版本功能开放时实现
+**`【备选 · 触发：M5 版本功能开放】`方案 D（版本快照绑定）为后续开放（M5）**：阅读位置与具体 commit 强绑定：
 
-#### AnchorMigrator：标题锚点映射
-> [!NOTE] 【备选】 AnchorMigrator：标题锚点映射
-> 触发：需标题锚点级跳转（章节内多标题）
-> 
-> 增加标题锚点映射，锚点消失回退章节开头，标题改动用模糊匹配。
-
-#### FingerprintMigrator：文本指纹定位
-> [!NOTE] 【备选】 FingerprintMigrator：文本指纹定位
-> 触发：需正文模糊定位（标题缺失/章节合并）
-> 
-> 记录阅读位置附近文本指纹，新版本全文检索命中后精确定位。
+- 记录时绑定 `version_id`（commit sha，该记录的位置必然可回放）
+- 更新后，位置仍指向旧版本 commit；用户从书架打开时，**默认继续读旧版本对应位置**，进度零丢失
+- 支持同一文档**多版本并行阅读**（版本历史界面选择任意版本）
+- 版本切换 = 按需 checkout 目标 tag 指向的 commit 到工作区；版本列表 = 列 `refs/mdor/versions/*`；清理策略（保留最近 N 版）在版本功能开放时实现
 
 ### 8.2 插件化迁移架构
 
@@ -531,10 +512,10 @@ pub trait PositionMigrator: Send + Sync {
 
 | 插件 id | 名称 | 状态 | 行为 |
 |---|---|---|---|
-| `path` | PathMigrator | [【当前】 PathMigrator（v1 默认）](#v1-行为更新追最新path-策略) | 按 `chapter_path` 直接映射到新版本，路径消失则 TOC 顺序回退相邻章节 |
-| `snapshot` | SnapshotMigrator | [【备选】 SnapshotMigrator（版本快照绑定）](#方案-d版本快照绑定) | 位置绑定旧版 commit，旧版本仍在 → 迁移结果即"读旧版原位置"；若用户选择追最新，则按 TOC 同名路径映射 |
-| `anchor` | AnchorMigrator | [【备选】 AnchorMigrator（标题锚点映射）](#anchormigrator标题锚点映射) | 增加标题锚点映射，锚点消失回退章节开头，标题改动用模糊匹配 |
-| `fingerprint` | FingerprintMigrator | [【备选】 FingerprintMigrator（文本指纹定位）](#fingerprintmigrator文本指纹定位) | 记录阅读位置附近文本指纹，新版本全文检索命中后精确定位 |
+| `path` | PathMigrator | **`【当前】`内置（v1 默认）** | 按 `chapter_path` 直接映射到新版本，路径消失则 TOC 顺序回退相邻章节 |
+| `snapshot` | SnapshotMigrator | **`【备选 · 触发：M5】`预留** | 位置绑定旧版 commit，旧版本仍在 → 迁移结果即"读旧版原位置"；若用户选择追最新，则按 TOC 同名路径映射 |
+| `anchor` | AnchorMigrator | **`【备选】`预留** | 增加标题锚点映射，锚点消失回退章节开头，标题改动用模糊匹配 |
+| `fingerprint` | FingerprintMigrator | **`【备选】`预留** | 记录阅读位置附近文本指纹，新版本全文检索命中后精确定位 |
 
 > v1 更新默认用 `path` 追最新；方案 D（多版本阅读 + 快照直连，M5）保证"永不丢位置"；其余插件是"用户主动追最新版"时的可选策略，将来通过设置界面选择。
 
@@ -628,7 +609,7 @@ sequenceDiagram
 | B4 | INTERNET 权限缺失 bind 失败 | [diff.md §2.3](diff.md#23-逐维度对比) | manifest 声明（reqwest 本就需要） |
 | B5 | 目录穿越 `../` 读任意文件 | [diff.md §2.3](diff.md#23-逐维度对比)「重写规则与一一对应」 | URL 规范化 + 书根内白名单校验 |
 | B6 | 切版本后同路径资源吃旧缓存 | [D-04](decisions.md#d-04-本地资源分发)「URL 不带版本号」 | 服务器统一 `Cache-Control: no-store` |
-| B7 | 阅读页样式分发方式（[【当前】 方案 1：include_bytes! 内嵌](decisions.md#方案-1-includebytes-内嵌) / [【备选】 方案 2：首启复制落盘](decisions.md#方案-2-首启复制落盘)） | [D-06](decisions.md#d-06-静态资源分流) | **已决策（2026-08-13）**：`include_bytes!` 内嵌 + 渲染内联；将来主题热更新再实现首启复制（需 app 层兼容层抹平平台差异，清单后续整理） |
+| B7 | 阅读页样式分发方式（`**【当前】**` v1 样式 `include_bytes!` 内嵌 + 渲染内联，不经本地 http 服务器；`**【备选 · 触发：主题热更新】**` 方案 2 首启复制落盘） | [D-06](decisions.md#d-06-静态资源分流) | **已决策（2026-08-13）**：`include_bytes!` 内嵌 + 渲染内联；将来主题热更新再实现首启复制（需 app 层兼容层抹平平台差异，清单后续整理） |
 | B8 | 进程被杀，服务器随进程消失 | [diff.md §2.3](diff.md#23-逐维度对比) | 阅读页前台期间依赖存在；不常驻 Service |
 
 #### 线程纪律
@@ -669,7 +650,7 @@ sequenceDiagram
 
 | 风险/待定 | 影响 | 应对 |
 |---|---|---|
-| 本地资源分发通道（原"wry 自定义协议在 Android 的兼容性"） | 阅读页图片/资源加载 | [【当前】 统一本地 tiny_http 服务器](decisions.md#统一本地-http-服务器分发)（已决策，[D-04](decisions.md#d-04-本地资源分发)）：两端统一本地 `tiny_http` 服务器（进程归 app 层）+ `http://127.0.0.1:PORT` 绝对 URL；`mdor-book://` 自定义 scheme [【备选】 mdor-book:// 自定义 scheme](decisions.md#mdor-book-自定义-scheme) 降级为后续可选，见 [diff.md §2.3](diff.md#23-逐维度对比) |
+| 本地资源分发通道（原"wry 自定义协议在 Android 的兼容性"） | 阅读页图片/资源加载 | **`【当前】`已决策**（[D-04](decisions.md#d-04-本地资源分发)）：两端统一本地 `tiny_http` 服务器（进程归 app 层）+ `http://127.0.0.1:PORT` 绝对 URL；`mdor-book://` 自定义 scheme **`【备选 · 触发：用户启用"资源通道"设置项】`** 降级为后续可选，见 [diff.md §2.3](diff.md#23-逐维度对比) |
 | Android 数据目录获取 | 存储路径 | JNI `getFilesDir()`；桌面走 exe 同目录 `data/`（便携式） |
 | mdBook 高级扩展（`{{#playground}}`、LaTeX、mermaid） | GitHub 源渲染保真度 | 首版仅支持 `{{#include}}`，其余列出 |
 | `dangerous_inner_html` 不执行 `<script>` | 搜索/导航原生 JS 失效 | 由 Dioxus 自绘 TOC/导航替代（预期行为） |

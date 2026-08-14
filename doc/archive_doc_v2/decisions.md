@@ -42,13 +42,7 @@
 - 历史版本读取 = 按需 checkout 目标 commit 到单一工作区，无空间累加
 - 未来数据同步直接复用 git 协议（fetch/push、partial clone 按需懒加载 blob）
 
-### 被否定的替代方案
-> [!CAUTION] 【已否决】 被否定的替代方案
-> 原因：详见下列各项
-> 
-> - **全量目录快照 + COW 硬链接 + index.json 版本链**：需手写版本关系/去重/原子性，无同步能力
-> - **git2/libgit2**：C 依赖，Android 交叉编译麻烦
-> - **blob 直接读**（作为历史读取主路径）：不必要，单一工作区 checkout 已满足
+**`【已否决】`被否定的替代方案**：全量目录快照 + COW 硬链接 + index.json 版本链（需手写版本关系/去重/原子性，无同步能力）；git2/libgit2（C 依赖，Android 交叉编译麻烦）；blob 直接读作为历史读取主路径（不必要，单一工作区 checkout 已满足）。
 
 **影响 / 诚实成本**：gix 依赖树大 → 按需裁剪 feature、每书独立小仓库控制对象库规模；写路径由"复制目录"变"一次 commit"（场景 1 只 fetch+tag）；GC/清理初期"删版本"= 仅删 tag，shallow 截断 + gc 延后为设置项（详见 [§7.4](project.md#74-存储基座为何-v1-起就用-gix) 成本表）。
 
@@ -100,18 +94,7 @@
 
 **背景**：阅读页是注入 HTML，其子资源（图片/CSS/JS）原本指向远端站点，离线时必须从本地磁盘返回字节；自定义 scheme（`mdor-book://`）两端不对称——WebView2 的 `AddWebResourceRequestedFilter` 可用但 API 异步、有怪癖，Android `shouldInterceptRequest` 对自定义 scheme 历来不可靠。直接 `file://` 不可行：Android WebView 沙箱禁读任意文件路径，且书籍数据运行期动态增长、无法打包进 APK `assets/`。
 
-**决策（2026-08-09）**：
-
-### 统一本地 HTTP 服务器分发
-> [!IMPORTANT] 【当前】 统一本地 HTTP 服务器分发
-> 
-> 首版 Windows 与 Android **统一用本地 `tiny_http` 服务器**，以 `http://127.0.0.1:PORT` 绝对 URL 分发阅读页子资源；URL 形态 `http://127.0.0.1:PORT/books/<id>/<path>`，**不带版本号**；缓存由服务器统一回 `Cache-Control: no-store` 根治。
-
-### mdor-book 自定义 scheme
-> [!NOTE] 【备选】 mdor-book:// 自定义 scheme
-> 触发：用户启用"资源通道"设置项
-> 
-> 自定义 scheme 降级为后续可选。两端不对称：WebView2 的 `AddWebResourceRequestedFilter` 可用但 API 异步、有怪癖；Android `shouldInterceptRequest` 对自定义 scheme 历来不可靠。
+**决策**：**`【当前】`** 首版 Windows 与 Android **统一用本地 `tiny_http` 服务器**，以 `http://127.0.0.1:PORT` 绝对 URL 分发阅读页子资源；URL 形态 `http://127.0.0.1:PORT/books/<id>/<path>`，**不带版本号**；缓存由服务器统一回 `Cache-Control: no-store` 根治。`mdor-book://` 自定义 scheme **`【备选 · 触发：用户启用"资源通道"设置项】`** 降级为后续可选。
 
 **为什么是 http 而非 file://（两层叠加，不是单一原因）**：
 
@@ -140,20 +123,9 @@
 |---|---|---|
 | 已决策 | 2026-08-09 | [diff.md §2.4](diff.md#24-对-mdor-的落地影响)、[project.md §6.5](project.md#65-renderservice) |
 
-**背景**：章节 HTML 注入 WebView 的方式选择。[【已否决】 iframe 方案](#iframe-注入方案) 虽 HTML 保真度高（脚本/锚点/样式隔离），但 App 页面（`dioxus://`）与 `http://127.0.0.1` **跨源**，Dioxus 读不到 iframe 内部滚动 → 破坏统一滚动进度跟踪，需 postMessage 桥或全页同源化，复杂度不划算。
+**背景**：章节 HTML 注入 WebView 的方式选择。iframe 虽 HTML 保真度高（脚本/锚点/样式隔离），但 App 页面（`dioxus://`）与 `http://127.0.0.1` **跨源**，Dioxus 读不到 iframe 内部滚动 → 破坏统一滚动进度跟踪，需 postMessage 桥或全页同源化，复杂度不划算——**`【已否决】`（iframe 方案）**。
 
-### iframe 注入方案
-> [!CAUTION] 【已否决】 iframe 注入方案
-> 原因：跨源破坏统一滚动进度跟踪，需 postMessage 桥或全页同源化，复杂度不划算
-> 
-> iframe 虽 HTML 保真度高（脚本/锚点/样式隔离），但 App 页面（`dioxus://`）与 `http://127.0.0.1` **跨源**，Dioxus 读不到 iframe 内部滚动 → 破坏统一滚动进度跟踪；需 postMessage 桥或全页同源化。
-
-**决策**：
-
-### dangerous_inner_html 注入
-> [!IMPORTANT] 【当前】 dangerous_inner_html 注入
-> 
-> 章节 HTML 用 `dangerous_inner_html` 注入，资源链接在 `html_extract.rs` 统一重写为**绝对 http URL**；不用 `<base>` 标签、不用 iframe。
+**决策**：**`【当前】`** 章节 HTML 用 `dangerous_inner_html` 注入，资源链接在 `html_extract.rs` 统一重写为**绝对 http URL**；不用 `<base>` 标签、不用 iframe。
 
 **依据**：innerHTML 与"Dioxus 自绘导航/TOC + `scroll_ratio` 节流存进度 + 不依赖 JS"的设计基石契合。
 
@@ -169,18 +141,7 @@
 
 **决策（2026-08-09，已由下方 2026-08-13 决策覆盖）**：App UI 资源走 Dioxus `[asset]` 打包（`asset!()` 宏两平台自动适配，Android 进 APK assets，无平台差异）；阅读页样式**原拟**"与书籍资源同通道、统一经本地 http 分发"（从 `assets/` 样式目录映射，或随书存储分发）——该通道分发仅对备选方案 2 成立，v1 不采用。
 
-**决策（2026-08-13，覆盖上方 2026-08-09 决策）**：
-
-### 方案 1 include_bytes 内嵌
-> [!IMPORTANT] 【当前】 方案 1：include_bytes! 内嵌
-> 
-> 样式体积小（几 KB），直接编进发布二进制，渲染时随章节 HTML **内联**注入、**不经本地 http 服务器**；改主题 = 重新发布二进制；两端零分叉、无启动流程。
-
-### 方案 2 首启复制落盘
-> [!NOTE] 【备选】 方案 2：首启复制落盘
-> 触发：主题热更新（需样式可下载/替换）
-> 
-> 首启/更新时落盘 `getFilesDir()`（Windows 为普通文件）替代内嵌。Android 上"随 App 分发"的样式打进的是 APK（zip），Rust 无法像读普通文件那样读 APK 内部，需 JNI AssetManager 读出后写入私有目录。方案 2 / 主题热更新的平台差异（Android JNI AssetManager 读 APK、路径注入自运行时 `getFilesDir()`；Windows 读普通文件）**收敛在 app 层兼容层**，向 core 提供统一"样式资源提供者"接口，**不放平台差异进 core**——v1 内联无需该兼容层，仅备选方案 2 需要；**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）。
+**决策（2026-08-13）**：`**【当前】**` v1 定为 **方案 1——`include_bytes!` 内嵌**（样式体积小（几 KB），直接编进发布二进制，渲染时随章节 HTML **内联**注入、**不经本地 http 服务器**；改主题 = 重新发布二进制；两端零分叉、无启动流程）。`**【备选 · 触发：主题热更新】**` 将来若需样式可下载/替换，再实现 **方案 2——首启/更新时落盘 `getFilesDir()`** 替代内嵌（Android 上"随 App 分发"的样式打进的是 APK（zip），Rust 无法像读普通文件那样读 APK 内部，需 JNI AssetManager 读出后写入私有目录）。方案 2 / 主题热更新的平台差异（Android JNI AssetManager 读 APK、路径注入自运行时 `getFilesDir()`；Windows 读普通文件）**收敛在 app 层兼容层**，向 core 提供统一"样式资源提供者"接口，**不放平台差异进 core**——v1 内联无需该兼容层，仅备选方案 2 需要；**兼容层需抹平的具体平台差异清单后续整理**（见 [project.md §11](project.md#11-风险与待定项)）。
 
 **影响**：`Dioxus.toml [asset]` 只服务于 App UI，不承担阅读页样式；两端 `<link>` 引用 URL 形态统一，core 无分叉。
 
@@ -212,12 +173,7 @@
 
 **背景**：更新时判断"内容变没变"。gix/git status 的 stat 快路径（`lstat()` 的 size/mtime 对比）被 mdor 全量重写流击穿——每次 fetch 全量重写工作区 → 每个文件 mtime 都是新的 → 与 index stat 快照必不匹配 → 永远落慢路径（全量读盘 + 逐文件 hash）；且 status 依赖写盘时序与 stat 缓存边缘情况。
 
-**决策**：
-
-### 检测层 原始字节 hash
-> [!IMPORTANT] 【当前】 检测层 = 原始字节 hash
-> 
-> 下载字节 hash vs 上个 commit blob hash，前提是 [D-09](#d-09-gix-三坑配置规避) 已强制 `core.autocrlf=false`；**展示层**（版本比较界面给人看的文本 diff）用 **gix diff**（树对象级，与过滤器无关）。分工：hash 回答"内容变没变"，gix diff 回答"变了什么"，两者不是竞争关系。
+**决策**：**`【当前】检测层 = 原始字节 hash`**（下载字节 hash vs 上个 commit blob hash），前提是 [D-09](#d-09-gix-三坑配置规避) 已强制 `core.autocrlf=false`；**展示层**（版本比较界面给人看的文本 diff）用 **gix diff**（树对象级，与过滤器无关）。分工：hash 回答"内容变没变"，gix diff 回答"变了什么"，两者不是竞争关系。
 
 **依据（权衡对照）**：
 
@@ -229,11 +185,7 @@
 | 版本 diff 语义 | 字节级（换行变化也算） | 内容级（忽略仅换行变化） |
 | 实现复杂度 | 一个 hash + 比较 | gix status API、写盘时序、stat 缓存边缘情况 |
 
-### gix status 检测层
-> [!CAUTION] 【已否决】 gix status 检测层
-> 原因：接受字节分叉，跨平台同步存储即不可用，与 mdor 字节保真原则冲突
-> 
-> 其唯一的独有优势是"检测层对任意配置免疫"，但前提是接受字节分叉——一旦接受，跨平台同步存储即不可用，与 mdor 字节保真原则冲突，故否决。
+**`【已否决】`gix status 检测层**：其唯一的独有优势是"检测层对任意配置免疫"，但前提是接受字节分叉——一旦接受，跨平台同步存储即不可用，与 mdor 字节保真原则冲突，故否决。
 
 **假差异精确链条**：autocrlf=true 时 commit 的 clean 过滤器把 blob 归一化为 LF，而下载/工作区是原始字节（源为 CRLF 时）→ 在"未归一化的原始字节"与"已归一化的 blob"上比 hash 必然不等。**只有源为 CRLF 才触发**；autocrlf=false 使 下载≡blob≡磁盘，原始 hash 退化为恒等比较。这正是"不赌源恰好是 LF、必须强制 false"的原因。
 
@@ -273,18 +225,7 @@
 
 **背景**：资源服务器从哪读字节有两个候选——工作区文件（默认）或 git 对象库 blob。
 
-**决策**：
-
-### 工作区直读
-> [!IMPORTANT] 【当前】 默认通道 = 工作区直读
-> 
-> `render/resources.rs` 的 URL→文件路径映射，本地 `tiny_http` 服务器（进程归 app 层）读磁盘字节。**现状：v1 不引入 blob 直接读，保持工作区直读。**
-
-### blob 直接读
-> [!NOTE] 【备选】 blob 直接读
-> 触发：跨平台真双渲染 / M5 免 checkout 服务任意版本 / 数据同步懒加载
-> 
-> URL→blob oid，从 git 对象库读字节，为可选能力，与工作区直读**互斥、不并行**——要么这个要么那个，做成插件化通道，经设置选项二选一。
+**决策**：**`【当前】默认通道 = 工作区直读`**（`render/resources.rs` 的 URL→文件路径映射，本地 `tiny_http` 服务器（进程归 app 层）读磁盘字节）；**`【备选 · 触发：跨平台真双渲染 / M5 免 checkout 服务任意版本 / 数据同步懒加载】blob 直接读`**（URL→blob oid，从 git 对象库读字节）为可选能力，与工作区直读**互斥、不并行**——要么这个要么那个，做成插件化通道，经设置选项二选一。**现状：v1 不引入，保持工作区直读。**
 
 **收益（blob 直接读）**：① 大小写碰撞边界跨平台一致（Windows 真双渲染，见 [D-09](#d-09-gix-三坑配置规避)）；② 服务字节 = 对象库权威字节，无工作区竞态；③ 免 checkout 服务任意版本（M5 铺路，并可加回 [D-04](#d-04-本地资源分发) 的 `<version>` 寻址）；④ 与数据同步懒加载 blob 复用同一能力；⑤ 渲染不受 Windows checkout 的路径长度/大小写坑影响。
 
@@ -300,42 +241,11 @@
 
 **背景**：mdor 有两处走 HTTPS（reqwest：镜像 HTML / GitHub API 探测；gix：git clone/fetch）。Android 系统无 OpenSSL 库，`native-tls` 在 Android 上需用 NDK 把 OpenSSL C 代码交叉编译成 arm64 目标（`openssl-sys` 找不到库/版本不匹配/构建脚本报错，著名坑）——这是 [project.md §1.2](project.md#12-技术栈)"Android 无 OpenSSL 依赖"的原因。
 
-**决策**：
+- [ ] 将当前的方案状态改成单行摘要的标记，多行方案阐述需要一个多行格式
 
-### 统一 TLS 栈 reqwest + rustls
-> [!IMPORTANT] 【当前】 统一 TLS 栈：reqwest + rustls
-> 
-> 两平台统一 `reqwest`（`default-features = false` + `rustls-tls`）+ **rustls-platform-verifier**（Android 走 JNI 调系统证书验证，Windows 退回 SChannel）；gix 开 `http-client-reqwest`（复用同一 TLS 栈，`curl` 后端需编 curl 的 C 代码）。
+**决策**：两平台统一 `reqwest`（`default-features = false` + `rustls-tls`）+ **`【当前】`rustls-platform-verifier**（Android 走 JNI 调系统证书验证，Windows 退回 SChannel）；gix 开 `http-client-reqwest`（复用同一 TLS 栈，`curl` 后端需编 curl 的 C 代码）；加密 provider 用 **`【当前】`ring**（轻量、免 cmake/perl、APK 体积小），经 rustls `CryptoProvider` 抽象可随时换 **`【备选 · 触发：需 FIPS / 更广算法面】`aws-lc-rs**（切换 = Cargo feature 一行 + 重新打包；不做运行时双 provider 注入）。
 
-### 加密 provider ring
-> [!IMPORTANT] 【当前】 加密 provider = ring
-> 
-> 轻量、免 cmake/perl、APK 体积小，经 rustls `CryptoProvider` 抽象可随时换 [【备选】 aws-lc-rs](#加密-provider-aws-lc-rs)。
-
-### 加密 provider aws-lc-rs
-> [!NOTE] 【备选】 加密 provider = aws-lc-rs
-> 触发：需 FIPS / 更广算法面
-> 
-> 切换 = Cargo feature 一行 + 重新打包；不做运行时双 provider 注入。
-
-**根证书三选一**：
-
-### 根证书 platform-verifier
-> [!IMPORTANT] 【当前】 根证书 = rustls-platform-verifier
-> 
-> 唯一同时解决两端，认用户/系统 CA。公司电脑常装内网 CA（`mitmproxy` 抓包、VPN 网关证书），只打包 webpki-roots 时 Windows 访问内网文档站会报 `certificate verify failed`——故选 platform-verifier。
-
-### 根证书 webpki-roots
-> [!NOTE] 【备选】 根证书 = webpki-roots
-> 触发：想要极致简单、放弃企业 CA
-> 
-> 编译进包，离线，忽略企业 CA。
-
-### 根证书 native-certs
-> [!CAUTION] 【已否决】 根证书 = rustls-native-certs
-> 原因：运行时读操作系统信任库，Android 无实现
-> 
-> 运行时读操作系统信任库（Windows 完美），但 Android 无实现，天然只解决 Windows 端。
+**根证书三选一**：**`【当前】`rustls-platform-verifier**（唯一同时解决两端，认用户/系统 CA）、`**【备选 · 触发：想要极致简单、放弃企业 CA】`webpki-roots**（编译进包，离线，忽略企业 CA）、**`【已否决】`rustls-native-certs**（运行时读操作系统信任库，Android 无实现）。公司电脑常装内网 CA（`mitmproxy` 抓包、VPN 网关证书），只打包 webpki-roots 时 Windows 访问内网文档站会报 `certificate verify failed`——故选 platform-verifier。
 
 **rustls 稳定性评估**：2016 年诞生、活跃维护（当前 0.23.x 系列，backport 修复 = 等效 LTS 稳定线）；独立安全审计 + OpenSSF 徽章；Prossimo（ISRG）主导，Google/AWS/Flyio 资助；Let's Encrypt（服务数亿网站的 CA）计划用 rustls 替换 OpenSSL。注意点：版本号 0.x 按 semver minor 可破坏 API（维护策略是"0.23 长期系列 + backport"，社区当稳定版用）；"纯 Rust"需打折（ring 含手写汇编、非纯 Rust、无 FIPS；协议逻辑为纯 Rust）。
 
