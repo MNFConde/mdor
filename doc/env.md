@@ -218,7 +218,7 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.
 
 ```powershell
 adb --version                              # 平台工具可用
-ls "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang.cmd"
+ls "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android30-clang.cmd"
 ```
 
 ---

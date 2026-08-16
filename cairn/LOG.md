@@ -2,6 +2,27 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-16 · doc/ A 类单源化 + 引用方向原则
+
+- 版本钉版单源化到 `env.md` §1：project §12.3 CI 表改「钉版」+ 指针、§12 文件树注释指针化、diff §6.4 指针化。
+- fsync 分层映射单源化到 project §6.7：diff §7.2 删完整表，保留平台结论 + 链接。
+- 版本清理策略单源化到 §7.4：§11「版本历史的存储占用」行改链接。
+- doc/AGENTS.md「L2 单详述源」追加引用方向原则（单一事实源 + 反向链接 + 互引不算环）。
+- 门禁：`check-links.py` 通过（211 anchors）。
+
+## 2026-08-16 · doc/ 决策状态单表化 + §11 补孤儿清理行
+
+- project.md §12.1「决策摘要表」删除（decisions 决策总览的复述，违反 L2 单详述源），改为一行指针链接 `decisions.md#决策总览`；ADR 状态单一事实源收敛到 decisions。
+- project.md §11 新增「孤儿 `books/<id>/` 目录清理」行（非 ADR 的实现待定项，只进 §11 不进 decisions）。
+- 门禁：`check-links.py` 通过（207 anchors）。
+
+## 2026-08-16 · doc/ 一致性审计与修正
+
+- 双轨检索（MCP 覆盖矩阵 + 全文核读）审查 doc/（排除 `archive_doc_v*/`）：结构自洽、无存档信息丢失（v1 diff §9 WebView 清单全量迁入 §10.1 且 B7 已闭环）。
+- 修正：project.md §12.3「无跨平台交叉编译需求」→「无引入 Zig 的 C 交叉编译需求」；§9 `site/` 注释「webview 直接读文件」→「经本地 http 服务读取」；§6.9 httpmock 引用 §12.2 → §10 M2/M4；hash 术语对齐 D-08（§7.3/§7.2/§4.1/§5）；env.md §2.5 示例 android24 → android30。
+- 决策：`.bak` 备份机制否决（原子写已消除半写态），删除 project.md §6.7 对应行，论证记入 decisions.md D-03、diff.md §7.2 留短块链接。
+- 门禁：`check-links.py` 通过（218 anchors）。
+
 ## 2026-08-16 · doc→cairn 第二批沉淀（4 新 2 扩）+ Cairn 规则拆分
 
 - 新建专题：[webview-host-differences.md](webview-host-differences.md)（diff §2.1–2.4 宿主/线程/内核/DevTools，纯落空）、[data-directory-platform.md](data-directory-platform.md)（diff §3 + D-13）、[service-orchestration.md](service-orchestration.md)（D-07：薄门面 + 命令串行 = 单写者、为何不引全局中介者）、[mcp-doc-retrieval.md](mcp-doc-retrieval.md)（MCP 检索实证：archive 稀释/表格召回弱/形式取信陷阱）。

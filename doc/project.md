@@ -159,7 +159,7 @@ pub trait SourceAdapter: Send + Sync {
     /// 获取/刷新：从 URL 拉取内容写入 dest，返回书籍结构与版本标识
     async fn fetch(&self, url: &str, dest: &Path) -> Result<FetchResult>;
 
-    /// 版本标识：返回当前远端版本字符串（GitHub: commit SHA；静态站: ETag/内容树 hash）
+    /// 版本标识：返回当前远端版本字符串（GitHub: commit SHA；静态站: ETag/内容树 hash（git tree oid））
     async fn remote_version(&self, url: &str) -> Result<Option<String>>;
 }
 
@@ -234,7 +234,7 @@ pub struct VersionSnapshot {
     pub version_id: String,      // 版本 tag 指向的 commit sha
     pub workdir: PathBuf,        // 仓库工作区（场景1: 上游文件；场景2: books/<id>/site/）
     pub toc: Vec<TocEntry>,      // 章节树（存于 .mdor/versions/<sha>.json，未被 git 跟踪）
-    pub meta: SnapshotMeta,      // 获取时间、来源版本标识、内容树 hash
+    pub meta: SnapshotMeta,      // 获取时间、来源版本标识、内容树 hash（git tree oid）
     // 版本标记 = 私有 tag（refs/mdor/versions/<seq>）；parent 由 commit 图派生，不单独存储
 }
 
@@ -345,7 +345,6 @@ sequenceDiagram
 | 场景 | 风险 | 解法 |
 |---|---|---|
 | 写入一半被杀（滚动存进度） | 文件损坏 | **原子写**：写 `*.tmp` + 同目录 `rename` 覆盖（Android/Linux 上原子），要么旧文件要么新文件，无半写状态 |
-| 启动读到坏文件 | 无法解析 | 覆盖前保留 `.bak`，启动解析失败回退备份 |
 | `add_book`/更新多步中断（建仓库 → 写 `.mdor/` → 写 `library.json`） | 半完成状态 | `library.json` **最后写** = 提交点：中断后书架无此书/仍为旧版本；孤儿 `books/<id>/` 目录启动时清理 |
 | 断电/内核崩溃 | rename 未落盘 | fsync 兜底：**按文件类型分层**——`library.json` 做 fsync（低频高价值），`progress.json` 仅 rename（高频低价值，见 [diff.md §7.2](diff.md#72-mdor-的取舍已决策-2026-08-09按文件类型分层) / [D-03](decisions.md#d-03-原子写与-fsync-分层)） |
 
@@ -380,7 +379,7 @@ sequenceDiagram
 - **串行化**：队列一次只执行一条，天然落实 §6.7"单进程单写者"
 - **进度上报**：`progress()` 暴露当前阶段（检查/下载/提交/迁移），UI 订阅显示"正在更新…"
 - **中断续做**：命令携带执行阶段，Android 切后台/被杀后重试可跳过已完成步骤（如工作区已写好则不再下载）；完整断点续传不在命令范围内
-- **可测试**：命令边界单一（"完成一次更新"），注入假适配器即可单测（httpmock，见 §12.2）
+- **可测试**：命令边界单一（"完成一次更新"），注入假适配器即可单测（httpmock 说明见 [diff.md §8.2](diff.md#82-httpmock-是什么)，用法见 [§10](#10-里程碑) M2/M4 行）
 
 ```rust
 // core/services/commands/mod.rs
@@ -421,7 +420,7 @@ while let Some(cmd) = queue.recv().await {
   - **场景 1**：仓库 = 上游仓库克隆，历史原样保留（`git log`/`git diff` 直接可用），我们只加 tag、不 commit
   - **场景 2**：仓库 = 自建链，每次抓取一个 commit
 - **用户版本 = tag**（`refs/mdor/versions/<seq>`，序号单调递增，避免与上游自身 tag 冲突），`version_id` = tag 指向的 commit sha
-- 每次内容有变化的抓取/更新：场景 1 打新 tag、场景 2 生成 commit 并打新 tag；内容树 hash 未变化时跳过，不产生空提交
+- 每次内容有变化的抓取/更新：场景 1 打新 tag、场景 2 生成 commit 并打新 tag；按 [D-08](decisions.md#d-08-变更检测) 原始字节 hash 检测，未变化则跳过空提交
 - 对象库天然**内容寻址去重**：跨版本未变的文件只存一份（blob/tree 复用），无需额外去重机制
 - `HEAD` 即当前版本，`current` 语义由 git ref 承载；版本列表 = 列 `refs/mdor/versions/*`
 - 历史版本读取 = **按需 checkout 目标 commit 到工作区**（单一工作区、原地覆盖，无空间累加）
@@ -445,7 +444,7 @@ sequenceDiagram
     alt 远端版本 ≠ 当前版本
         UP->>AD: fetch(url, 暂存目录)
         AD-->>UP: FetchResult { version_id, toc }
-        UP->>VER: 对比内容树 hash，跳过空提交
+        UP->>VER: 按原始字节 hash 检测（D-08），跳过空提交
         VER->>VER: 场景1 fetch 上游到新 HEAD / 场景2 生成 commit 写入工作区
         VER->>VER: 打新版本 tag refs/mdor/versions/v<seq+1>，更新 HEAD
         UP->>MIG: 阅读位置按章节路径映射（v1 默认）
@@ -578,7 +577,7 @@ sequenceDiagram
             └── <book_id>/       # gix 管理的 git 仓库（场景1: 上游克隆；场景2: 自建链）
                 ├── .git/        # 对象库 + refs（含版本 tag refs/mdor/versions/<seq>，内容寻址去重）
                 ├── src/, book.toml ...  # 工作区（场景1: 上游 mdBook 源文件；场景2: 镜像内容于 site/）
-                ├── site/        # 工作区（场景2: 当前版本镜像内容，webview 直接读文件）
+                ├── site/        # 工作区（场景2: 当前版本镜像内容，webview 经本地 http 服务读取）
                 └── .mdor/       # 书籍元数据（仓库根下但未被 git 跟踪）
                     └── versions/
                         └── <commit sha>.json  # 每版本 toc/meta（按 commit sha 索引）
@@ -676,11 +675,12 @@ sequenceDiagram
 | gix 依赖体积/内存（Android） | APK 大小、启动内存 | 按需裁剪 gix feature；每书独立小仓库控制对象库规模 |
 | checkout 切版本与 webview 渲染协调 | 切版本时工作区文件被替换 | 先加载章节到内存再切换，或切换后 reload |
 | gix 在 Android 的可用性 | 存储基座能否正常跑 | M1 桌面验证 + M6 真机验证 |
-| 版本历史的存储占用 | 设备空间 | gix 对象库内容寻址去重；保留最近 N 版初期只删版本 tag（历史与对象保留），后续磁盘回收统一做 shallow 截断 + gc（用户可选设置） |
+| 版本历史的存储占用 | 设备空间 | 清理策略（初期只删版本 tag、后续 shallow 截断 + gc 用户设置）见 [§7.4](#74-存储基座为何-v1-起就用-gix) 成本表「GC / 清理」；「保留最近 N 版」M5 敲定 |
 | 上游仓库体积 / Git LFS | 场景1 磁盘占用与图片渲染 | 依赖 gix 对象去重；LFS 仓库 clone 仅得指针文件，首版提示暂不支持 |
 | 静态站点镜像边界 | 防止越界爬取 | 限同源 + 深度/大小上限 |
 | 大小写碰撞物理冲突（`Foo.md` vs `foo.md`） | Windows NTFS 只能落一个文件 | tree 级检测（平台无关）；同 blob 归一；异 blob 两选项（双渲染+标注 默认 / 报错）；Windows 接受单渲染+标注退化；跨平台真双渲染绑定可选"blob 直接读"能力（[D-10](decisions.md#d-10-资源读取通道)，默认不引入） |
 | 兼容层平台差异清单（方案 2/主题热更新前置，[D-06](decisions.md#d-06-静态资源分流)） | 样式资源提供者的平台差异（JNI AssetManager / `getFilesDir()` 注入） | 方案 2 落地时先整理清单再设计接口，兼容层收敛差异、core 保持平台无关 |
+| 孤儿 `books/<id>/` 目录清理（提交点设计配套） | 磁盘空间、启动扫描耗时 | "启动时清理"已定（[§6.7](#67-元数据写入可靠性json不用-sqlite)）；判定孤儿标准（以 `library.json` 为准）、清理时机/保留策略未定——M1 实现时敲定 |
 
 ---
 
@@ -691,7 +691,7 @@ sequenceDiagram
 ```
 mdor/
 ├── Cargo.toml                 # [workspace] members + [workspace.dependencies] 统一锁定依赖版本
-├── rust-toolchain.toml        # 固定 1.97.1（M0 不装 android targets；M6 补回 arm64-v8a / x86_64，见 env.md §7）
+├── rust-toolchain.toml        # 钉版版本见 env.md §1（M0 不装 android targets；M6 补回 arm64-v8a / x86_64，见 env.md §7）
 ├── .gitignore                 # /target、mobile/android 构建产物、fixtures 下载缓存
 ├── README.md
 ├── doc/                       # 本架构文档、mdor.c4 等
@@ -766,23 +766,7 @@ mdor/
 - **资源分发归属**：本地 `tiny_http` 服务器进程归 `mdor-app`（`local_http.rs`：起停 + 动态端口 + `Cache-Control: no-store` + 白名单校验）；`render/resources.rs` 是 core 纯映射（URL↔规范化路径，重写与服务两端共用同一逻辑、无 socket）；v1 服务器只服务书内容（工作区直读），阅读页样式内联不经服务器（[D-04](decisions.md#d-04-本地资源分发) / [D-06](decisions.md#d-06-静态资源分流)）。
 - **依赖版本统一**：reqwest / scraper / pulldown-cmark / serde / gix 等在根 `[workspace.dependencies]` 钉一次。
 
-**决策摘要表**（各决策的背景 / 依据 / 影响见 [decisions.md](decisions.md)）：
-
-| 决策 | 状态 | 决策记录 |
-|---|---|---|
-| 存储基座 = gix（每书一个 git 仓库，链 + tag 统一版本），day-one 引入；历史版本读取统一走"按需 checkout 单一工作区" | 已决策 | [D-01](decisions.md#d-01-gix-存储基座) |
-| 元数据 = JSON 文件而非 SQLite（原子写 + 提交点 + 读入 guard；serde_json 安全对照） | 已决策 | [D-02](decisions.md#d-02-json-元数据而非-sqlite) |
-| 原子写 + fsync 按文件类型分层（`write_json_atomic` 的 `Durability`：`library.json`→Fsync，`progress.json`→RenameOnly） | 已决策 | [D-03](decisions.md#d-03-原子写与-fsync-分层) |
-| 本地资源分发：两端统一 `tiny_http` + `http://127.0.0.1:PORT` 绝对 URL（URL 不带版本号）；`mdor-book://` 自定义 scheme 仅备用 | 已决策 | [D-04](decisions.md#d-04-本地资源分发) |
-| 渲染形态 = `dangerous_inner_html` 注入（不用 iframe / `<base>`） | 已决策 | [D-05](decisions.md#d-05-渲染形态) |
-| App 静态资源分流：UI 走 `[asset]` 打包；阅读页样式 `include_bytes!` 内嵌 + 渲染内联（不经本地 http 服务器）；主题热更新将来走方案 2+兼容层 | 已决策 | [D-06](decisions.md#d-06-静态资源分流) |
-| 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [D-07](decisions.md#d-07-薄门面与命令化) |
-| 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [D-08](decisions.md#d-08-变更检测) |
-| gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [D-09](decisions.md#d-09-gix-三坑配置规避) |
-| 资源读取通道可插拔：工作区直读默认，blob 直接读可选（互斥二选一，v1 不引入） | 已决策 | [D-10](decisions.md#d-10-资源读取通道) |
-| TLS：rustls + `rustls-platform-verifier` + ring，gix 用 reqwest 后端 | 已决策 | [D-11](decisions.md#d-11-tls-与加密选型) |
-| 依赖安全审计 = `cargo audit`（零配置），不引入 `cargo deny` | 已决策 | [D-12](decisions.md#d-12-依赖与安全审计) |
-| 数据目录注入而非硬编码（Android `getFilesDir()` / Windows exe 同目录便携式，不回退） | 已决策 | [D-13](decisions.md#d-13-数据目录注入) |
+**决策状态**（单一事实源 = [decisions.md 决策总览](decisions.md#决策总览)，含状态与规范位置反向链接；背景 / 依据 / 影响见各 D-xx，本表不重复维护）
 
 > 其中"blob 直接读"的接口可行性（gix `find_blob` / `tree.traverse()`）、收益与代价细节见 [D-10](decisions.md#d-10-资源读取通道)。
 
@@ -792,20 +776,22 @@ mdor/
 
 ### 12.3 CI 与发布（GitHub Actions）
 
-仓库公开，Actions 分钟全免（Linux/Windows 均计 0）。**CI 与本地工具链解耦**：本地保持 MSVC + 计划内依赖（[env.md §1](env.md#1-环境总览与版本矩阵)），CI 用原生 runner 默认工具链；**不引入 Zig**（无跨平台交叉编译需求）。
+仓库公开，Actions 分钟全免（Linux/Windows 均计 0）。**CI 与本地工具链解耦**：本地保持 MSVC + 计划内依赖（[env.md §1](env.md#1-环境总览与版本矩阵)），CI 用原生 runner 默认工具链；**不引入 Zig**（无引入 Zig 的 C 交叉编译需求：Android 由 NDK clang、Windows 由 MSVC 覆盖）。
+
+> 版本（rust / NDK / JDK / dioxus-cli）单一事实源 = [env.md §1](env.md#1-环境总览与版本矩阵)，下表以「钉版」指代、不重复列具体号。
 
 **`ci.yml`（PR / push 校验，M1 起先挂 core-quality，M7 补全）：**
 
 | Job | 环境 | 内容 |
 |---|---|---|
-| `core-quality` | `ubuntu-latest` + rust 1.97.1 | `cargo fmt --check` → `clippy -D warnings` → `cargo test -p mdor-core`（含 httpmock 集成）→ `cargo audit` |
+| `core-quality` | `ubuntu-latest` + rust 钉版 | `cargo fmt --check` → `clippy -D warnings` → `cargo test -p mdor-core`（含 httpmock 集成）→ `cargo audit` |
 | `windows-desktop-check` | `windows-latest`（原生 MSVC，host 目标） | `cargo check -p mdor-app`，提前抓 Windows 侧编译回归 |
-| `android-check` | `ubuntu-latest` + NDK r29 + rust android targets | `cargo check --target aarch64-linux-android -p mdor-app` + `dx doctor` 冒烟 |
+| `android-check` | `ubuntu-latest` + NDK 钉版 + rust android targets | `cargo check --target aarch64-linux-android -p mdor-app` + `dx doctor` 冒烟 |
 
 **`release.yml`（tag `v0.1.0` 触发，双 job 并行）：**
 
-- **android**（`ubuntu-latest`）：JDK 21（`setup-java`）→ Android SDK + NDK r29（`android-actions/setup-android`）→ rust 1.97.1 + android targets → 钉版 dioxus-cli → `dx build --platform android --release --target aarch64-linux-android`（**release 只编 arm64-v8a 单 ABI**）→ keystore（GitHub Secrets）签名 → APK 上传 + Release asset
-- **windows-desktop**（`windows-latest`，原生 MSVC）：rust 1.97.1 → 钉版 dioxus-cli → `dx build --platform desktop --release` → exe 打 zip 上传 + Release asset
+- **android**（`ubuntu-latest`）：JDK（钉版，`setup-java`）→ Android SDK + NDK 钉版（`android-actions/setup-android`）→ rust 钉版 + android targets → 钉版 dioxus-cli → `dx build --platform android --release --target aarch64-linux-android`（**release 只编 arm64-v8a 单 ABI**）→ keystore（GitHub Secrets）签名 → APK 上传 + Release asset
+- **windows-desktop**（`windows-latest`，原生 MSVC）：rust 钉版 → 钉版 dioxus-cli → `dx build --platform desktop --release` → exe 打 zip 上传 + Release asset
 
 **要点：**
 

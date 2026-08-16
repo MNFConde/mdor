@@ -504,7 +504,7 @@ Rust 依赖若含 C 库（如 `openssl-sys`、`curl-sys`），交叉编译时要
 
 1. 选型全朝"纯 Rust"靠：serde_json（非 SQLite，[project.md §6.7](project.md#67-元数据写入可靠性json不用-sqlite)）、gix（非 git2，[project.md §7.4](project.md#74-存储基座为何-v1-起就用-gix)）、rustls（非 openssl）——把 C 依赖排除在外。
 2. **任何新增 C 依赖都会重新引入 Android 交叉编译差异点**——引入前须评估。
-3. `rust-toolchain.toml` 固定 1.97.1（M0 阶段不装 android targets，M6 打包前补回 arm64-v8a / x86_64，见 [env.md §7](env.md#7-m0-到-m6-过渡清单补回-android-侧)）。
+3. `rust-toolchain.toml` 钉版版本见 [env.md §1](env.md#1-环境总览与版本矩阵)（M0 阶段不装 android targets，M6 打包前补回 arm64-v8a / x86_64，见 [env.md §7](env.md#7-m0-到-m6-过渡清单补回-android-侧)）。
 
 ## 7. 可靠性策略细节
 
@@ -523,13 +523,13 @@ Rust 依赖若含 C 库（如 `openssl-sys`、`curl-sys`），交叉编译时要
 
 **决策**：按**文件类型**分层决定是否 fsync，不按平台（平台差异只是放大器，决策维度取"文件类型"）。完整论证（原子写已消除半写态、fsync 的成本 ∝ 写频率、收益 ∝ 状态价值）见 [D-03 原子写与 fsync 分层](decisions.md#d-03-原子写与-fsync-分层)。
 
-| 文件 | 写频率 | 断电丢了的代价 | 决策 |
-|---|---|---|---|
-| `progress.json` | **高**（滚动节流、切章都写） | 低——进度回退，重滚即可（与"离线书可重下"同类可接受损失） | **仅 rename**（跳 fsync） |
-| `library.json` | **低**（仅 add/remove/update 写） | 较高——书架状态回退（一致性由提交点设计兜底） | **fsync**（一次几 ms，成本可忽略） |
-| `.mdor/versions/<sha>.json` | 低（每版本一次），可重写 | 低 | 仅 rename（或 fsync，无感） |
+> 分文件类型映射（`progress.json`→RenameOnly、`library.json`→Fsync、`.mdor/versions/<sha>.json`→RenameOnly）与 `Durability` 实现见 [project.md §6.7](project.md#67-元数据写入可靠性json不用-sqlite)；两端同一套代码、不按 `cfg(target_os)` 分支（平台差异只是放大器）。
 
-**实现**：`write_json_atomic(path, data, durability)` 增加 `Durability` 参数（`Fsync` / `RenameOnly`），**调用方按文件类型传**——不按 `cfg(target_os)` 分支，两端同一套代码，core 保持平台无关（严格实现时 Linux/Android 上 rename 后还应 fsync 父目录才完整，mdor 场景不必较真，文件级 fsync 足够）。
+#### 覆盖前保留 .bak 备份
+> [!CAUTION] 【已否决】 覆盖前保留 `.bak` 备份
+> 原因：见 [D-03](decisions.md#d-03-原子写与-fsync-分层)（2026-08-16）
+> 
+> 原子写（`*.tmp` + `rename`）已消除半写态；`.bak` 仅对绕过原子写的代码路径有意义，不作为可靠性机制。
 
 ## 8. 测试策略
 
