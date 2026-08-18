@@ -19,7 +19,7 @@
 | JDK | Microsoft OpenJDK 21 | dx 的 Gradle 侧 | `C:\Program Files\Microsoft\jdk-21...` | M6 |
 | Android SDK | cmdline-tools **14742923** + platform-tools + `platforms;android-36` + build-tools | Android 构建基座 | `D:\Android\Sdk` | M6 |
 | Android NDK | **r29**（`29.0.14206865`） | C/C++ 交叉编译（gix/ring 等） | `D:\Android\Sdk\ndk` | M6 |
-| dioxus-cli | 0.7.x（cargo install） | `dx serve/build` | `~/.cargo/bin` | M0 |
+| dioxus-cli | 0.7.10（cargo install，`--locked --version` 钉版） | `dx serve/build` | `~/.cargo/bin` | M0 |
 | WebView2 | 随系统 | `dx serve --platform desktop` 渲染 | 预装（Win11） | M0 |
 
 ### 版本对齐说明
@@ -30,6 +30,7 @@
 - **MSVC 仅约束 host 目标**：MSVC（link.exe）只服务 `x86_64-pc-windows-msvc` 桌面目标；Android 交叉编译走 NDK 自带 clang/lld，与 MSVC 解耦，同一 rustup 工具链下 MSVC host 与 android targets 可并存。
 - **NDK 选 r29**：dioxus 官方移动端文档与社区案例均覆盖 r28/r29；r28（`28.2.13676358`）可作回退。
 - **cmdline-tools 目录结构**：必须为 `cmdline-tools/latest/bin`，否则 `sdkmanager` 不可用。
+- **版本号落点约定**：本矩阵为版本号唯一事实源（[project.md §12.3](project.md#123-ci-与发布github-actions)）；安装命令内联的具体号（§2.1/§2.3）为命令参数、与矩阵同一事实，升级两处同步改（约定见 [AGENTS.md](AGENTS.md#版本号事实落点约定)）。
 
 ---
 
@@ -143,15 +144,15 @@ rustup show   # 显示 active toolchain = 1.97.1-x86_64-pc-windows-msvc（M0 不
 ### 2.3 dioxus-cli（dx）
 
 ```powershell
-cargo install dioxus-cli --locked
+cargo install dioxus-cli --locked --version 0.7.10
 ```
 
-> 首次安装会编译约数百个 crate，耗时较长。装完 `dx` 位于 `~/.cargo/bin`（Scoop 的 rustup 已在 PATH）。
+> `--version 0.7.10` 与 §1 版本矩阵一致（版本号落点约定见 [AGENTS.md](AGENTS.md#版本号事实落点约定)）；`--locked` 的含义与加/不加区别见 [§4.1 版本锁定机制](#版本锁定机制)；首次安装会编译约数百个 crate，耗时较长。装完 `dx` 位于 `~/.cargo/bin`（Scoop 的 rustup 已在 PATH）。
 
 **验证：**
 
 ```powershell
-dx --version
+dx --version   # 应显示 0.7.10（与 §1 版本矩阵一致）
 dx doctor    # 体检：桌面项（MSVC/WebView2）应全绿；SDK/NDK/JDK/rust android targets 缺失属正常（M6 才启用，见 §7）
 ```
 
@@ -262,6 +263,22 @@ cargo audit                 # 漏洞扫描，退出码非 0 即存在已知漏�
 - **小版本（patch/minor）**：`cargo update` 自动跟进即可；`rustls` 这类随 reqwest 走的传递依赖也只需 `cargo update`，不需手动挑版本（`diff.md` §1.6）。
 - **大版本（破坏性）**：需改根 `[workspace.dependencies]` 钉版 + 人工核对 breaking changes（CHANGELOG / migration guide），逐 crate 验证。
 - **重复版本排查**：APK 体积敏感时 `cargo tree -d` 查 multiple-versions，按需处理。
+
+#### 版本锁定机制
+
+`--locked` 的含义与机制，分 `cargo install`（全局工具）与项目构建两类：
+
+- **含义**：`--locked` = 要求依赖解析结果与 lockfile **完全一致**，不一致直接报错终止，不静默换版本。
+- **`cargo install --locked`（全局工具）**：发布包自带发布者提交的 `Cargo.lock`（`cargo publish` 时打进包）。不加 `--locked`：Cargo 忽略包内 lockfile、**重新解析**取当时最新兼容版；加 `--locked`：强制用包内 lockfile 的精确版本。工具自身版本用 `--version <号>` 钉、依赖图用 `--locked` 钉，两者结合 = 跨环境可复现（对齐 §2.3 `dx` 0.7.10）。
+- **`cargo build --locked`（项目）**：用**仓库提交**的 `Cargo.lock`（应用项目须提交 lock）；别处 clone 后 `--locked` 构建即拉取完全相同的依赖版本。
+
+| | 不加 `--locked` | 加 `--locked` |
+|---|---|---|
+| 依赖版本 | 重新解析，取当时最新兼容版 | 用 lockfile 精确版本 |
+| 与 lock 不一致 | 静默按新解析 | 报错终止 |
+| 可复现性 | 否（不同时间/环境可能不同） | 是 |
+
+> 两套 lockfile 是独立机制，勿混：工具 install 用**包自带** lockfile，项目构建用**仓库提交**的 `Cargo.lock`。
 
 ### 4.2 工具链 / 环境 — 低频率
 
