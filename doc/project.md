@@ -799,7 +799,7 @@ mdor/
 - CI 的 MSVC **不钉 14.50**：windows-latest 预装 VS Build Tools，Rust `find-msvc-tools` 自动识别即可；14.50 钉版仅服务本地可复现（[env.md §1](env.md#1-环境总览与版本矩阵)）。
 - 桌面产物仍需目标机 Win11 预装 WebView2；首版出 exe zip，`dx bundle` 安装包为可选增强。
 - 签名密钥与密码只存 GitHub Secrets，不入仓库。
-- 缓存：`Swatinem/rust-cache` + 缓存 dx 二进制（`cargo install dioxus-cli --locked` 是最耗时步骤）；`concurrency: cancel-in-progress` 取消重复 push。
+- 缓存：`Swatinem/rust-cache` + 缓存 dx 二进制（dx 经 `cargo install` 安装，命令见 [env.md §2.3](env.md#23-dioxus-clidx)，是全流程最耗时步骤）；`concurrency: cancel-in-progress` 取消重复 push。
 
 ---
 

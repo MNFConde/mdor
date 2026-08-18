@@ -2,6 +2,25 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-18 · doc/ L2 扩「确定信息单源」+ README 补抽象层级说明
+
+- doc/AGENTS.md L2 新增「确定信息同样单源」bullet：具体易变的确定信息（依赖版本、当前方案）只一处落值、别处链接引用防漏改；层级关系链接 README。
+- README「文档间引用关系」补抽象层级说明（规范 > 论证 > 差异 > 操作；上层稳定、下层易变）——四层模型唯一源在 README，L2 不复制。
+- 审查确认：decisions 为论证层（非纯具体）、diff 含背景知识，维持既有四层模型不重构。
+- 门禁：`check-links.py` 通过（222 anchors）。
+
+## 2026-08-18 · 全量 cargo install 统一 --locked + CI 补 dx 钉版
+
+- env.md §4.1 三命令（cargo-outdated / cargo-edit / cargo-audit）补 `--locked`；根 AGENTS.md 门禁行的 cargo-audit 安装同步补；project.md §12.3 CI 缓存行 dx 安装命令改链接 env.md §2.3、不内联版本号（版本号单源 env.md §1，避免升级漏改）。
+- env.md §1「版本钉版边界」加澄清条：`--locked`（依赖图可复现）≠ `--version`（钉工具自身版本），「不钉版本」只指后者，`--locked` 对全部 cargo install 一律启用。
+- 核查：全仓库 27 处 cargo install，archive_doc_v* 存档不改，其余已全部带 `--locked`。
+- 门禁：`check-links.py` 通过（219 anchors）。
+
+## 2026-08-18 · doc/ 版本钉版边界：不钉清单 + 通用规则 + crates 钉版时机
+
+- env.md §1 新增「版本钉版边界」：不钉版本清单（cargo-audit/outdated/edit、WebView2、随 toolchain 自动锁定项）；通用规则（钉 = 影响构建/运行行为或与项目库配对，否则不钉）；crates 依赖版本不在文档确认、M1 建 workspace 时于根 workspace.dependencies 钉下，dioxus 库跟随 dx（0.7.10 ↔ 0.7.x）。
+- 门禁：`check-links.py` 通过（219 anchors）。
+
 ## 2026-08-18 · doc/ 版本号落点约定 + dx 钉 0.7.10 + --locked 机制说明
 
 - 新增约定（doc/AGENTS.md「版本号事实落点约定」）：版本号事实源 = env.md §1 矩阵；安装命令内联具体号是命令参数、与矩阵同一事实；升级两处同步改。

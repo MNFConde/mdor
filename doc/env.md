@@ -32,6 +32,22 @@
 - **cmdline-tools 目录结构**：必须为 `cmdline-tools/latest/bin`，否则 `sdkmanager` 不可用。
 - **版本号落点约定**：本矩阵为版本号唯一事实源（[project.md §12.3](project.md#123-ci-与发布github-actions)）；安装命令内联的具体号（§2.1/§2.3）为命令参数、与矩阵同一事实，升级两处同步改（约定见 [AGENTS.md](AGENTS.md#版本号事实落点约定)）。
 
+### 版本钉版边界
+
+- **不钉版本**（均无独立版本事实，不入本矩阵）：
+
+  | 组件 | 原因 |
+  |---|---|
+  | cargo-audit / cargo-outdated / cargo-edit | 独立 dev 工具，结果由实时 RustSec/crates.io 数据驱动，不参与构建、无配对 |
+  | WebView2 | 随系统（Win11 预装），非项目可控，走系统更新 |
+  | rustc / clippy / rustfmt（rustup 组件） | 已被 `rust-toolchain.toml` 1.97.1 自动锁定 |
+  | platform-tools / adb（SDK 子件） | 跟 SDK 管理，无独立版本事实 |
+  | 「MSVC 工具链」矩阵行 | 实际版本由 `rust-toolchain.toml` 间接钉死（1.97.1-msvc） |
+
+- **通用规则**：钉版本 = 影响构建/运行行为，或与项目库配对（dx↔dioxus）；否则不钉。按此，上表「需要钉版本」的环境依赖（Rust / MSVC / SDK / NDK / JDK / dx）初版版本已全部确认。
+- **项目 crates 依赖**（serde / thiserror / tokio / reqwest / scraper / pulldown-cmark / gix 等）：版本**不在本文档确认**，按 [project.md §12.1](project.md#121-关键设计决策) 于 M1 建 workspace 时在根 `[workspace.dependencies]` 取当时稳定版钉下；唯一例外 **dioxus 库跟随 dioxus-cli**——dx 0.7.10 ↔ dioxus 0.7.x 配对升级（§4.3）。
+- **`--locked` vs `--version`**：「不钉版本」只指不钉工具自身版本号（`--version`）；依赖图可复现（`--locked`）对所有 `cargo install` 一律启用，两者独立、互不替代。
+
 ---
 
 ## 2. 安装步骤（按依赖顺序）
@@ -245,9 +261,9 @@ dx serve --platform desktop
 **常用工具（按需安装）：**
 
 ```powershell
-cargo install cargo-outdated   # 查看依赖新版本：cargo outdated
-cargo install cargo-edit       # 升 Cargo.toml 版本约束：cargo upgrade
-cargo install cargo-audit      # 漏洞扫描：cargo audit（§12.1 已定为必跑）
+cargo install cargo-outdated --locked   # 查看依赖新版本：cargo outdated
+cargo install cargo-edit --locked       # 升 Cargo.toml 版本约束：cargo upgrade
+cargo install cargo-audit --locked      # 漏洞扫描：cargo audit（§12.1 已定为必跑）
 ```
 
 **升级流程：**
