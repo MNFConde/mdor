@@ -1,7 +1,7 @@
 mdor 项目里程碑实施计划（M0/M1/M2）:
     依据：doc/project.md §10 里程碑 / §12 文件树；doc/env.md §3、§2.3
     推进顺序：先 core 后窗口；每阶段以质量门禁收尾（fmt/clippy/test/audit）
-    符号：☐ 待办 / ✔ 完成 / ✘ 取消；优先级 @critical / @high / @low
+    符号：☐ 待办 / ✔ 完成 / ✘ 取消；优先级 @critical / @high / @low；完成可附 @done(yy-mm-dd HH:MM)
 
 M0 桌面开发环境:
     ✔ 安装 VS Build Tools（MSVC 14.50 + Win11 SDK 10.0.26100）
@@ -9,7 +9,7 @@ M0 桌面开发环境:
     ✔ 安装 dioxus-cli 0.7.10（cargo install --locked --version，env.md §2.3）
     ✔ 安装 cargo-audit 0.22.2（--locked）
     ✔ dx doctor 体检：桌面项（MSVC/WebView2）全绿
-    ☐ 质量门禁首跑：fmt --check → clippy -D warnings → test → audit @high
+    ✔ 质量门禁首跑：fmt --check → clippy -D warnings → test → audit @high @done(26-08-19 22:16)
     M0 验收:
         ☐ workspace 建立后 `dx serve --platform desktop` 弹窗 @critical
             注：验收需先有最小 Dioxus 应用（mdor-app 骨架，属 M1），与 M1「书架弹窗」合并勾掉
@@ -17,7 +17,7 @@ M0 桌面开发环境:
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
     workspace 重构:
-        ☐ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app）@high
+        ☐ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high
         ☐ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high
         ☐ 删根 src/，建 crates/mdor-core（lib）+ crates/mdor-app（bin）骨架 @high
     mdor-core（纯 Rust 平台无关）:

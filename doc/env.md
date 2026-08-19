@@ -280,6 +280,18 @@ cargo audit                 # 漏洞扫描，退出码非 0 即存在已知漏�
 - **大版本（破坏性）**：需改根 `[workspace.dependencies]` 钉版 + 人工核对 breaking changes（CHANGELOG / migration guide），逐 crate 验证。
 - **重复版本排查**：APK 体积敏感时 `cargo tree -d` 查 multiple-versions，按需处理。
 
+#### 版本约束落根工作流（workspace 继承）
+
+member 依赖一律 `{ workspace = true }` 引用根表，**版本号只落根 `[workspace.dependencies]` 一处**（§4 原则；[D-12](decisions.md#d-12-依赖与安全审计)）。
+
+- **`cargo add` 不能直接钉根表**：无 `--workspace` 支持（rust-lang/cargo #11527 / #16797，2026-03 仍未实现），只能 `cargo add dep -p <member>`（workspace 根为 virtual manifest 时**不带 `-p` 会直接报错** `could not determine which package to modify`，不会写任何文件），且会把具体版本号直接写进该 member 的 `[dependencies]`——版本会散到各 member，违背钉根约定。故 `cargo add` 只用来**探测当前稳定版号**，版本落根靠手动写根表。
+- **推荐流程**：
+  1. `cargo add <dep> -p <member>` 探测稳定版号（只取版本信息；member 那行随后改回 `{ workspace = true }`）；
+  2. 手动把 `dep = "<版本>"` 写进根 `[workspace.dependencies]`；
+  3. member 侧改为 `dep = { workspace = true }`（member 需要专属 features 时写 `dep = { workspace = true, features = [...] }`）。
+- **workspace 继承的两个 Cargo 语义约束**：根 `[workspace.dependencies]` 不能声明 `optional`；`features` 是 additive（member 侧可追加，但 member 侧不能重写 `version`/`registry`/`path` 等键）。
+- **virtual workspace 须显式设 `resolver`**：根 `[workspace]` 写 `resolver = "3"`（edition 2024 默认、Rust 1.84+）；resolver 为全局项、member 里写无效——普通包由 `edition` 推断，virtual workspace 无 `[package]` 无法推断，不写直接报错。
+
 #### 版本锁定机制
 
 `--locked` 的含义与机制，分 `cargo install`（全局工具）与项目构建两类：

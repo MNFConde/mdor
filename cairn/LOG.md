@@ -2,6 +2,20 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-19 · AGENTS.md 状态修正 + resolver 纳入与归档
+
+- AGENTS.md：android targets 状态修正（toolchain 已带 rust-std-{aarch64,x86_64}-linux-android，JDK/SDK/NDK 未装）；质量门禁补单 crate 骨架期命令（`cargo test`，workspace 落地后切 `-p mdor-core`）。
+- resolver 纳入：plan.todo M1 workspace 重构补 `resolver = "3"`；env.md §4.1 补 virtual workspace 须显式设 resolver（全局项、member 写无效）。
+- 归档 `cairn/cargo-workspace-resolver.md`：resolver 1/2/3 版本差异、virtual workspace 无 edition 必须显式的原因、mdor 取值建议（Cargo book 整理）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-19 · 质量门禁首跑 + audit 静默成功实证 + 版本落根工作流定稿
+
+- 质量门禁首跑四门全绿（fmt --check / clippy -D warnings / cargo test / cargo audit `exit=0`）；plan.todo 勾选，符号规范补 `@done(yy-mm-dd HH:MM)` 标注格式。
+- 实证：cargo-audit 0.22.2 无漏洞时静默成功、不打印结语，**退出码 0 才是判据**（presenter.rs 仅在 found 时打输出）——沉淀 `cairn/cargo-audit-behavior.md`。
+- env.md §4.1「版本约束落根工作流」：定稿 `cargo add` 不能钉根表（#11527 / #16797）、3 步流程、workspace 根不带 `-p` 直接报错、两个 Cargo 语义约束；decisions D-12 补依据（rustls/dioxus 根钉版为硬约束，推翻也绕不开）。
+- 门禁：`check-links.py` 通过。
+
 ## 2026-08-18 · doc/ L2 扩「确定信息单源」+ README 补抽象层级说明
 
 - doc/AGENTS.md L2 新增「确定信息同样单源」bullet：具体易变的确定信息（依赖版本、当前方案）只一处落值、别处链接引用防漏改；层级关系链接 README。

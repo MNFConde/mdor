@@ -360,6 +360,8 @@
 - 依赖安全审计 = **`cargo audit`（零配置）**：本地定期或 CI 跑，对照 RustSec Advisory Database（RUSTSEC），漏洞存在时退出码非 0；保证"无已知未修复漏洞"可持续验证而非一次性判断
 - **不引入 `cargo deny`**：许可证合规（licenses）对离线阅读器非刚需、来源检查（sources）冗余（依赖全来自 crates.io 且 `Cargo.toml` 自持）
 
+**依据（补充 2026-08-19）**：根钉版对 rustls（[D-11](#d-11-tls-与加密选型)，防双版本）与 dioxus（跟随 dx 配对，[env.md §4.3](env.md#43-框架-dioxus-dx必须同步)）是**硬约束**——即使推翻本决策改 per-member，也绕不开这两者的根钉版，只会变成「大部分 per-member + 个别钉根」的混合态，更混乱。`cargo add` 无 workspace 支持（#11527 / #16797），钉根 = 手动维护根表 + member `{ workspace = true }` 引用，操作细节见 [env.md §4.1](env.md#41-rust-依赖crates-最常见)「版本约束落根工作流」。
+
 **影响**：CI 的 `core-quality` job 挂 `cargo audit`（[project.md §12.3](project.md#123-ci-与发布github-actions)）；APK 体积敏感时用 cargo 自带 `cargo tree -d` 按需排查重复版本（multiple-versions），无需整套 deny。
 
 ## D-13 数据目录注入

@@ -35,13 +35,13 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 
 - `cargo run`（骨架）；桌面 UI：`dx serve --platform desktop`（需 dioxus-cli 0.7.x + Win11 WebView2）
 - Windows 走 MSVC：`cargo build` 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
-- Android 侧 M6 前不碰：本机未装 android targets / JDK / SDK / NDK
+- Android 侧 M6 前不碰：本机未装 JDK / SDK / NDK；toolchain 已带 android targets（rust-std-{aarch64,x86_64}-linux-android，M6 打包时直接用）
 
 ## 质量门禁（计划进 CI core-quality，本地保持一致）
 
 - `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo audit`
 - `cargo audit`（需 `cargo install cargo-audit --locked`）是硬性要求（D-12），退出码非 0 即失败
-- 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`
+- 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`；M1 workspace 落地前（单 crate 骨架期）用 `cargo test`
 
 ## 工具链钉版
 
