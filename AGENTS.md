@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前为规划期：`src/` 只有 hello world，仓库主体是 `doc/` 规划文档。
+mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前为骨架期：Cargo workspace（`mdor-core` + `mdor-app`）已建，core 业务模块按 plan.todo M1 推进；仓库另含 `doc/` 规划文档。
 
 > 本项目使用 Project Cairn 组织项目知识：Cairn 全套规则（初始化配置/阅读顺序/文档职责/冲突仲裁/知识库消费反射/知识沉淀规则）见 `cairn/AGENTS.md`。
 > 本机装有 project-cairn skill 且仓库存在 `cairn/` 时生效；否则视为不适用，跳过。
@@ -33,7 +33,7 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 
 ## M0 桌面构建（唯一当前可用目标）
 
-- `cargo run`（骨架）；桌面 UI：`dx serve --platform desktop`（需 dioxus-cli 0.7.x + Win11 WebView2）
+- `cargo run -p mdor-app`（workspace bin）；桌面 UI：`dx serve --platform desktop`（需在 `crates/mdor-app/` 目录运行，Dioxus.toml 所在处；需 dioxus-cli 0.7.x + Win11 WebView2）
 - Windows 走 MSVC：`cargo build` 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
 - Android 侧 M6 前不碰：本机未装 JDK / SDK / NDK；toolchain 已带 android targets（rust-std-{aarch64,x86_64}-linux-android，M6 打包时直接用）
 
@@ -41,12 +41,12 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 
 - `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo audit`
 - `cargo audit`（需 `cargo install cargo-audit --locked`）是硬性要求（D-12），退出码非 0 即失败
-- 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`；M1 workspace 落地前（单 crate 骨架期）用 `cargo test`
+- 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`
 
 ## 工具链钉版
 
 - `rust-toolchain.toml` 钉 1.97.1（minimal profile）；本地 MSVC 钉 14.50；勿随手升级
-- 版本约束只钉在根 `[workspace.dependencies]` 一处（规划中）；升级后必须 `cargo test` + `cargo audit`
+- 版本约束只钉在根 `[workspace.dependencies]` 一处；升级后必须 `cargo test` + `cargo audit`
 
 ## 架构约定（改代码前先读 project.md）
 

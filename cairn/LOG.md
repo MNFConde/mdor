@@ -2,6 +2,16 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-19 · M1 workspace 骨架落地 + 书架弹窗验收
+
+- M1 workspace 重构落地：根 Cargo.toml 补 `[workspace.dependencies]`（serde 1.0.229 / serde_json 1.0.151 / thiserror 2.0.20 / dioxus 0.7.10，`cargo info` 验证均为当时稳定版）；删根 src/ hello world；建 `crates/mdor-core`（lib 空壳）+ `crates/mdor-app`（bin 骨架，中文书架占位）。
+- 验收：门禁全绿（test / fmt / clippy / audit exit=0）；`dx build --platform desktop` 产物 exe 弹窗（标题 Dioxus App，MainWindowHandle 非零）——合并勾掉 plan.todo 14 + 20/21/22/48/49。
+- 实证沉淀 `cairn/dioxus-cli-0.7-config.md`：Dioxus.toml 0.7 用 name + default_platform（非 0.6 app_id）、dx serve/check 无 --project 须 cd 进 member、dx build 产物在 `target/dx/<crate>/debug/windows/app`、name 不映射窗口标题。
+- 过程实证：开工时仓库即处 workspace 中间态（Cargo.toml members 已改、`crates/` 未建，不可构建）；agent shell 无法驻留常驻 GUI 进程，弹窗验收改用 dx build + exe；PowerShell 下 dx 的红色 NativeCommandError 为 stderr 合并噪音，以 `$LASTEXITCODE` 判结果。
+- audit 注记：dioxus-desktop 引入 14 条 unmaintained/unsound 级 advisory（gtk 系 Linux 侧 + rand 0.7.3 等传递依赖），退出码 0 不阻塞（D-12 判据）。
+- 文档同步：plan.todo 勾选；根 AGENTS.md 状态/命令/单测/钉版四处更新；env.md §3 补工作目录；ROADMAP M0 勾掉、当前焦点转 M1。
+- 门禁：`check-links.py` 通过。
+
 ## 2026-08-19 · AGENTS.md 状态修正 + resolver 纳入与归档
 
 - AGENTS.md：android targets 状态修正（toolchain 已带 rust-std-{aarch64,x86_64}-linux-android，JDK/SDK/NDK 未装）；质量门禁补单 crate 骨架期命令（`cargo test`，workspace 落地后切 `-p mdor-core`）。

@@ -1,10 +1,10 @@
 # mdor 路线图
 
-**当前焦点**：规划期——M0 桌面构建为唯一当前可用目标（`dx serve --platform desktop`）；下一里程碑 **M1**（workspace + mdor-core 骨架 + gix 存储基座 + 书架骨架 + 轻量 ci.yml）。里程碑详表见 `doc/project.md` §10。
+**当前焦点**：M0 已验收（workspace 建立 + `dx serve --platform desktop` 弹窗通过）；下一里程碑 **M1**（workspace + mdor-core 骨架已建，剩 error/model、store、source trait、versioning/migration trait、gix 存储基座、AppService + 命令骨架、轻量 ci.yml）。里程碑详表见 `doc/project.md` §10。
 
 ## 里程碑
 
-- [ ] M0 桌面开发环境搭建（VS/MSVC v14.50、rust-toolchain 1.97.1、dioxus-cli）
+- [x] M0 桌面开发环境搭建（VS/MSVC v14.50、rust-toolchain 1.97.1、dioxus-cli）
 - [ ] M1 workspace + mdor-core 骨架 + gix 存储基座 + AppService + 书架骨架 + ci.yml
 - [ ] M2 StaticSiteSource 递归镜像下载（自建链 + 版本 tag）
 - [ ] M3 阅读器：内容抽取、资源协议、目录抽屉、滚动进度

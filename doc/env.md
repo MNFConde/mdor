@@ -245,6 +245,7 @@ ls "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-li
 `project.md` §10 M0 验收标准：
 
 ```powershell
+cd crates/mdor-app   # Dioxus.toml 所在处；dx serve 从当前目录查找配置（0.7 无 --project/-p 选项）
 dx serve --platform desktop
 ```
 

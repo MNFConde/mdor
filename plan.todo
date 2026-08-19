@@ -11,15 +11,15 @@ M0 桌面开发环境:
     ✔ dx doctor 体检：桌面项（MSVC/WebView2）全绿
     ✔ 质量门禁首跑：fmt --check → clippy -D warnings → test → audit @high @done(26-08-19 22:16)
     M0 验收:
-        ☐ workspace 建立后 `dx serve --platform desktop` 弹窗 @critical
+        ✔ workspace 建立后 `dx serve --platform desktop` 弹窗 @critical @done(26-08-19 23:38)
             注：验收需先有最小 Dioxus 应用（mdor-app 骨架，属 M1），与 M1「书架弹窗」合并勾掉
 
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
     workspace 重构:
-        ☐ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high
-        ☐ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high
-        ☐ 删根 src/，建 crates/mdor-core（lib）+ crates/mdor-app（bin）骨架 @high
+        ✔ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high @done(26-08-19 23:38)
+        ✔ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high @done(26-08-19 23:38)
+        ✔ 删根 src/，建 crates/mdor-core（lib）+ crates/mdor-app（bin）骨架 @high @done(26-08-19 23:38)
     mdor-core（纯 Rust 平台无关）:
         error 与 model:
             ☐ error.rs：统一错误类型（thiserror）
@@ -45,8 +45,8 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
             ☐ gix 存储基座冒烟单测：建仓库/打 tag/内容去重 @high
         ☐ cargo test -p mdor-core 全绿 @critical
     mdor-app UI 壳:
-        ☐ Dioxus.toml + 书架骨架（中文 UI，dioxus 0.7.x）@high
-        ☐ dx serve --platform desktop 弹窗（= M0 验收 + M1 书架骨架）@critical
+        ✔ Dioxus.toml + 书架骨架（中文 UI，dioxus 0.7.x）@high @done(26-08-19 23:38)
+        ✔ dx serve --platform desktop 弹窗（= M0 验收 + M1 书架骨架）@critical @done(26-08-19 23:38)
     CI:
         ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
     ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新

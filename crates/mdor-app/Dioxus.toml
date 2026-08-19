@@ -1,0 +1,3 @@
+[application]
+name = "mdor"
+default_platform = "desktop"
