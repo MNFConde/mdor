@@ -2,6 +2,15 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-20 · 便携 Android 工具链方案定稿（dev/ + 提交相对路径 .cargo 配置）
+
+- 评估 Podman6（仅 Linux VM、无 Windows 容器计划，GH #27842）与 Hyper-V Windows VM（过重）后，定「本机便携隔离」：Android SDK/NDK/JDK 全部 zip 便携装 `<repo>\dev\`（gitignore，M6 执行）；不写任何持久环境变量。
+- 提交层落地：`.cargo/config.toml`（`relative=true` 的 `[env] ANDROID_HOME` + `include` 本地覆盖，无 force = 全局优先）、`.cargo/config.local.toml.example`（版本化 NDK + Windows linker 模板）、`dev/dev-env.ps1`（全局优先、便携兜底，dx/Gradle 用）、`.gitignore` 加 `/dev/*` + `!dev-env.ps1` + `config.local.toml`。
+- 归档 `cairn/cargo-config-toml.md`：config 层级、`[env]` relative/force 语义、提交模式与坑（linker OS 相关、版本号不进提交文件、dx/Gradle 不读 cargo config）。
+- JDK 定 Temurin 21（zip → `dev\jdk`），`dev-env.ps1` 保留 Scoop/既有 `JAVA_HOME` 兜底。
+- 文档同步：env.md §1/§2.4/§2.5/新增 §2.6/§5/§6/§7/§8、project.md §12 文件树、根 AGENTS.md 一行。
+- 门禁：`check-links.py` 通过。
+
 ## 2026-08-19 · M1 workspace 骨架落地 + 书架弹窗验收
 
 - M1 workspace 重构落地：根 Cargo.toml 补 `[workspace.dependencies]`（serde 1.0.229 / serde_json 1.0.151 / thiserror 2.0.20 / dioxus 0.7.10，`cargo info` 验证均为当时稳定版）；删根 src/ hello world；建 `crates/mdor-core`（lib 空壳）+ `crates/mdor-app`（bin 骨架，中文书架占位）。
