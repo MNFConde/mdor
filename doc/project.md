@@ -692,9 +692,11 @@ sequenceDiagram
 mdor/
 ├── Cargo.toml                 # [workspace] members + [workspace.dependencies] 统一锁定依赖版本
 ├── rust-toolchain.toml        # 钉版版本见 env.md §1（M0 不装 android targets；M6 补回 arm64-v8a / x86_64，见 env.md §7）
-├── .gitignore                 # /target、mobile/android 构建产物、fixtures 下载缓存
+├── .gitignore                 # /target、mobile/android 构建产物、fixtures 下载缓存、dev/ 工具树、config.local.toml
+├── .cargo/config.toml         # 提交：Android 工具链 [env]（相对路径、无 force）+ include 本地覆盖（M6 生效，见 env.md §2.6）
 ├── README.md
 ├── doc/                       # 本架构文档、mdor.c4 等
+├── dev/                       # M6：便携工具链树（gitignored，仅 dev-env.ps1 跟踪；见 env.md §2.6）
 │
 ├── crates/
 │   ├── mdor-core/             # 纯 Rust 库，平台无关，桌面可直接 cargo test

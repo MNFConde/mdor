@@ -16,9 +16,9 @@
 | MSVC 工具链 | `stable-x86_64-pc-windows-msvc` | Windows 本机构建/link | Scoop rustup 管理 | M0 |
 | Android targets | `aarch64-linux-android` / `x86_64-linux-android` | Android 交叉编译（arm64-v8a / x86_64） | rustup target | M6 |
 | **VS 2026 Build Tools** | MSVC **v14.50**（LTS，钉版）+ Win11 SDK 10.0.26100 | `link.exe` / Windows 本机链接 | `D:\VS\BuildTools` | M0 |
-| JDK | Microsoft OpenJDK 21 | dx 的 Gradle 侧 | `C:\Program Files\Microsoft\jdk-21...` | M6 |
-| Android SDK | cmdline-tools **14742923** + platform-tools + `platforms;android-36` + build-tools | Android 构建基座 | `D:\Android\Sdk` | M6 |
-| Android NDK | **r29**（`29.0.14206865`） | C/C++ 交叉编译（gix/ring 等） | `D:\Android\Sdk\ndk` | M6 |
+| JDK | Temurin 21（LTS，Adoptium zip 便携） | dx 的 Gradle 侧 | `<仓库>\dev\jdk`（便携；Scoop 兜底） | M6 |
+| Android SDK | cmdline-tools **14742923** + platform-tools + `platforms;android-36` + build-tools | Android 构建基座 | `<仓库>\dev\android` | M6 |
+| Android NDK | **r29**（`29.0.14206865`） | C/C++ 交叉编译（gix/ring 等） | `<仓库>\dev\android\ndk` | M6 |
 | dioxus-cli | 0.7.10（cargo install，`--locked --version` 钉版） | `dx serve/build` | `~/.cargo/bin` | M0 |
 | WebView2 | 随系统 | `dx serve --platform desktop` 渲染 | 预装（Win11） | M0 |
 
@@ -30,6 +30,7 @@
 - **MSVC 仅约束 host 目标**：MSVC（link.exe）只服务 `x86_64-pc-windows-msvc` 桌面目标；Android 交叉编译走 NDK 自带 clang/lld，与 MSVC 解耦，同一 rustup 工具链下 MSVC host 与 android targets 可并存。
 - **NDK 选 r29**：dioxus 官方移动端文档与社区案例均覆盖 r28/r29；r28（`28.2.13676358`）可作回退。
 - **cmdline-tools 目录结构**：必须为 `cmdline-tools/latest/bin`，否则 `sdkmanager` 不可用。
+- **便携与全局优先**：M6 各项全部 zip 便携装 `<仓库>\dev\`（gitignored），环境注入走 `dev-env.ps1`（会话级）+ `.cargo/config.toml`（cargo 级，无 force = 已有变量优先）——全局已装依赖的机器零介入，直接开发（机制见 [§2.6](#26-环境注入机制cargo-配置与-dev-envps1)）。
 - **版本号落点约定**：本矩阵为版本号唯一事实源（[project.md §12.3](project.md#123-ci-与发布github-actions)）；安装命令内联的具体号（§2.1/§2.3）为命令参数、与矩阵同一事实，升级两处同步改（约定见 [AGENTS.md](AGENTS.md#版本号事实落点约定)）。
 
 ### 版本钉版边界
@@ -55,7 +56,7 @@
 **两阶段安装总览：**
 
 - **M0（桌面开发，当前安装）**：VS Build Tools（§2.1）→ rust-toolchain.toml（§2.2）→ dioxus-cli（§2.3）
-- **M6（Android 打包前再装，暂缓）**：JDK 21（§2.4）→ Android SDK + NDK（§2.5）；另需把 android targets 补回 `rust-toolchain.toml`（见 §7 过渡清单）
+- **M6（Android 打包前再装，暂缓）**：JDK 21（§2.4）→ Android SDK + NDK（§2.5）；另需补回 android targets 与生成 `.cargo/config.local.toml`（见 §7 过渡清单）
 
 ### 2.1 VS 2026 Build Tools（MSVC v14.50 钉版）
 
@@ -175,28 +176,35 @@ dx doctor    # 体检：桌面项（MSVC/WebView2）应全绿；SDK/NDK/JDK/rust
 ### 2.4 JDK 21（dx 的 Gradle 侧需要）【M6 暂缓】
 
 > M0 桌面开发不需要（`dx serve --platform desktop` 不走 Gradle）；M6 打包前再装（见 §7 过渡清单）。
+> 便携为主：Temurin 21 zip 解压到 `dev\jdk\`（gitignored，随 `dev/` 树走）；Scoop/既有 `JAVA_HOME` 作兜底（`dev-env.ps1` 已有变量优先）。
+
+**主选：Temurin 21（Adoptium）zip 便携**
 
 ```powershell
-winget install --id Microsoft.OpenJDK.21 --source winget --accept-package-agreements --accept-source-agreements
-[Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-21.0.x.x-hotspot', 'User')
+$zip = "$env:TEMP\temurin21.zip"
+Invoke-WebRequest https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse -OutFile $zip
+Expand-Archive $zip -DestinationPath "dev\jdk" -Force
+. .\dev\dev-env.ps1        # 会话变量：dev\jdk 存在则设置 JAVA_HOME
+& "$env:JAVA_HOME\bin\java.exe" -version   # 输出 openjdk 21.x
 ```
 
-> `JAVA_HOME` 路径以实际安装版本为准（`C:\Program Files\Microsoft\jdk-*`）。设 User 级即可，无需管理员。
-
-**验证（新开终端）：**
+**备选：Scoop 管理（兜底）**
 
 ```powershell
-java -version   # 输出 openjdk 21.x
-echo $env:JAVA_HOME
+scoop bucket add java
+scoop install temurin21-jdk
+# JAVA_HOME 由 dev-env.ps1 保留既有值；或按需设 User 级变量
 ```
+
+> 不写死机器路径：`dev-env.ps1` 运行时扫描 `dev\jdk\` 取已装版本；升级只需替换目录内容。
 
 ### 2.5 Android SDK + NDK【M6 暂缓】
 
 > M0 桌面开发不需要；M6 打包前再装（见 §7 过渡清单）。
-> 根目录统一放 `D:\Android\Sdk`，与其余大件（VS、JSB）同盘。
+> 便携安装到仓库内 `dev\android\`（gitignored）；**不写任何持久环境变量**——注入走 [§2.6](#26-环境注入机制cargo-配置与-dev-envps1)（`dev-env.ps1` 会话级 + `.cargo/config.toml` cargo 级）。
 
 ```powershell
-$sdkRoot = 'D:\Android\Sdk'
+$sdkRoot = Join-Path $PWD 'dev\android'
 New-Item -ItemType Directory -Path "$sdkRoot\cmdline-tools" -Force | Out-Null
 
 # 1) 下载并解压 cmdline-tools（版本号 14742923 为 2026-03 最新）
@@ -206,22 +214,11 @@ Expand-Archive $zip -DestinationPath "$sdkRoot\cmdline-tools" -Force
 # 目录结构必须为 cmdline-tools\latest\bin
 Rename-Item "$sdkRoot\cmdline-tools\cmdline-tools" "$sdkRoot\cmdline-tools\latest" -Force
 
-# 2) 设置环境变量（User 级）
-[Environment]::SetEnvironmentVariable('ANDROID_HOME', $sdkRoot, 'User')
-[Environment]::SetEnvironmentVariable('NDK_HOME',  "$sdkRoot\ndk\29.0.14206865", 'User')
-[Environment]::SetEnvironmentVariable('ANDROID_NDK_HOME', "$sdkRoot\ndk\29.0.14206865", 'User')
+# 2) 注入会话变量（先装 JDK §2.4，sdkmanager 依赖 JAVA_HOME）
+. .\dev\dev-env.ps1
 ```
 
-**PATH 追加**（User 级）：
-
-```powershell
-$sdkTools = "$sdkRoot\cmdline-tools\latest\bin"
-$platformTools = "$sdkRoot\platform-tools"
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-[Environment]::SetEnvironmentVariable('Path', "$userPath;$sdkTools;$platformTools", 'User')
-```
-
-**安装 SDK 组件**（新开终端使环境变量生效）：
+**安装 SDK 组件：**
 
 ```powershell
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
@@ -229,7 +226,7 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.
 # yes | sdkmanager --licenses
 ```
 
-> 若 sdkmanager 报 Java 相关错误，确认 JAVA_HOME 已生效（2.4 节）。组件版本可用 `sdkmanager --list` 查询最新。
+> 若 sdkmanager 报 Java 相关错误，确认 `dev-env.ps1` 已生效（§2.4）。组件版本可用 `sdkmanager --list` 查询最新。
 
 **验证：**
 
@@ -237,6 +234,23 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.
 adb --version                              # 平台工具可用
 ls "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android30-clang.cmd"
 ```
+
+> **卸载**：删 `dev\android` 即回收全部（无持久变量/注册残留）。
+
+### 2.6 环境注入机制（cargo 配置与 dev-env.ps1）
+
+> Android 工具链不写系统环境变量；cargo 与 dx 两条注入路径互补，均「全局优先、便携兜底」——全局已装依赖时零介入，直接开发。
+
+**路径 A — cargo 级：`.cargo/config.toml`（已提交，机器无关）**
+
+- `[env] ANDROID_HOME = { value = "dev/android", relative = true }`：相对仓库根解析为绝对路径，注入 cargo 及子进程（build script / rustc / rust-analyzer）。
+- **无 `force`**：已存在的环境变量不被覆盖 → 全局依赖机 / CI 惰性；`dev/` 未创建时指向不存在路径亦无害。
+- 版本化 NDK 路径与 Windows linker 在 gitignored `.cargo/config.local.toml`（`Copy-Item` 自 `.example` 生成，见 §7 第 4 步）。
+
+**路径 B — dx/Gradle 级：`dev/dev-env.ps1`（已提交）**
+
+- dx 的 Gradle 侧不读 cargo config，需进程环境变量：`dev-env.ps1` 按 `dev\` 存在与否决定注入或保留已有变量（`JAVA_HOME` / `ANDROID_HOME` / NDK 扫描已装版本）。
+- 用法：`. .\dev\dev-env.ps1` 只在当前会话生效，关终端即无痕迹。
 
 ---
 
@@ -315,8 +329,8 @@ member 依赖一律 `{ workspace = true }` 引用根表，**版本号只落根 `
 |---|---|---|
 | **rustc 1.97.1** | 改 `rust-toolchain.toml` 的 `channel` → `rustup update` | 项目用 edition 2024；升大版本前查各依赖 MSRV |
 | **VS 2026 / MSVC v14.50（钉版）** | 无需主动升，VS 自动更新不影响构建 | 要升 MSVC 时改 §2.1 组件 ID 与 §1 矩阵 |
-| **Android SDK/NDK/JDK** | `sdkmanager --list` 查新版，按需升 | NDK 大版本影响 ring/gix 交叉编译，谨慎；先查 [Revision History](https://developer.android.com/ndk/downloads/revision_history) |
-| **JDK** | winget upgrade | 与 dx 的 Gradle 侧兼容性验证 |
+| **Android SDK/NDK** | `sdkmanager --list` 查新版，按需升 | NDK 大版本影响 ring/gix 交叉编译，谨慎；先查 [Revision History](https://developer.android.com/ndk/downloads/revision_history) |
+| **JDK** | 替换 `dev\jdk` 目录内容 / `scoop update temurin21-jdk` | 与 dx 的 Gradle 侧兼容性验证 |
 
 ### 4.3 框架 — Dioxus / dx（必须同步）
 
@@ -361,6 +375,7 @@ dx doctor         # 工具链体检（框架/环境升级后）
 2. **（M6）ABI 按场景取舍**：**本地模拟器 debug 编 arm64-v8a + x86_64**（双 ABI，仍单 APK：模拟器跑 x86_64、真机跑 arm64）；**release / 纯真机调试只编 arm64-v8a**（单 ABI 最省）。`rustup target add` 两个 target 都装（对齐 §7 toml 补回），release 构建只用 arm64。
 3. **（M6）不装模拟器**：开发期直接连真机（`dx serve --platform android --device`），省 emulator + 系统镜像 2.5–3.5 GB。
 4. **（M0）VS 缓存目录清理**：`D:\VS\cache` 可在安装后删除（`--nocache` 已抑制本轮缓存）。
+5. **（M6）位置与回收**：M6 各项装 `<仓库>\dev\`（gitignored）；删 `dev\` 树即全部回收（SDK/NDK/JDK ≈ 5–7 GB），无持久变量/注册残留（见 [§2.6](#26-环境注入机制cargo-配置与-dev-envps1)）。
 
 ---
 
@@ -370,7 +385,9 @@ dx doctor         # 工具链体检（框架/环境升级后）
 |---|---|---|
 | `cargo build` 报找不到 link.exe / MSVC 链接失败 | VS Build Tools 未装 / MSVC 工具链未激活 | 重跑 §2.1；`rustup show` 确认 host 为 msvc |
 | `link.exe` 找得到但 rustc 仍报错 | 缺 Windows 11 SDK 组件 | 确认 `Windows11SDK.26100` 已 `--add`（§2.1） |
-| `sdkmanager` 无法启动 | JAVA_HOME 未生效 | 新开终端；确认 §2.4 |
+| `sdkmanager` 无法启动 | JAVA_HOME 未生效 | `. .\dev\dev-env.ps1` 注入会话变量；确认 §2.4 |
+| `. .\dev\dev-env.ps1` 报「此系统上禁止运行脚本」 | PowerShell 执行策略限制 | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`（User 级）后重试 |
+| `cargo check --target aarch64-linux-android` 报找不到 NDK / 链接错误 | 本地 `.cargo/config.local.toml` 未生成或版本不符 | `Copy-Item` 自 `.example` 生成并核对版本（§7 第 4 步）；或确认全局 `ANDROID_NDK_HOME` |
 | `dx build --android` 链接报乱码/参数过长 | 旧版 dx 的 Windows 链接器代理 bug | 升级 dioxus-cli ≥ 0.7.1（PR #4126 已修） |
 | `dx doctor` 提示缺 android target / SDK / NDK / JDK | **M0 阶段属正常**（Android 侧 M6 才启用） | M0 不必处理；M6 时按 §7 过渡清单补装并改回 `rust-toolchain.toml` |
 | Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics` | 真机 API < 30 | 在 `Dioxus.toml` 设 `min_sdk_version = 30` |
@@ -379,34 +396,37 @@ dx doctor         # 工具链体检（框架/环境升级后）
 
 ## 7. M0 到 M6 过渡清单（补回 Android 侧）
 
-M0 验收通过、进入 M6 Android 打包前，按序补齐：
+M0 验收通过、进入 M6 Android 打包前，按序补齐（便携方案，全部落 `<仓库>\dev\`，不写持久变量）：
 
 ```powershell
 # 1) rust-toolchain.toml 补回 android targets（去掉 M0 注释，恢复 targets 数组）
 #    targets = ["aarch64-linux-android", "x86_64-linux-android"]
-
-# 2) 安装 rust android targets
 rustup target add aarch64-linux-android x86_64-linux-android
 
-# 3) 装 JDK 21（§2.4）
-winget install --id Microsoft.OpenJDK.21 --source winget --accept-package-agreements --accept-source-agreements
-[Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-21.0.x.x-hotspot', 'User')
+# 2) 装 JDK 21（§2.4）：Temurin 21 zip → dev\jdk\（Scoop 兜底）
 
-# 4) 装 Android SDK + NDK（§2.5，新开终端使环境变量生效）
-$sdkRoot = 'D:\Android\Sdk'
+# 3) 装 Android SDK + NDK（§2.5，全落 dev\android\）
+. .\dev\dev-env.ps1    # 会话变量（ANDROID_HOME/ANDROID_NDK_HOME/JAVA_HOME/PATH）
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
 yes | sdkmanager --licenses
 
+# 4) 生成本地 .cargo 覆盖（版本化 NDK 路径 + Windows linker，gitignored）
+Copy-Item .cargo\config.local.toml.example .cargo\config.local.toml
+# 编辑核对版本号与 env.md §1 一致；非 Windows 或全局已有 linker 的机器可删 [target.*] 段
+
 # 5) 体检全绿
 dx doctor    # SDK/NDK/JDK/rust targets 不再缺项
+cargo check --target aarch64-linux-android -p mdor-app   # 交叉冒烟（含 ring 的 NDK clang 构建）
 ```
 
 > 完成即回到 §3 的 Android 侧验证（`dx build --platform android --target aarch64-linux-android`）。
+> 卸载：删 `dev\` 树 + `rustup target remove`，无持久变量/注册残留（见 [§2.6](#26-环境注入机制cargo-配置与-dev-envps1)）。
 
 ---
 
 ## 8. 记录
 
+- 2026-08-20：定稿便携 Android 工具链方案——SDK/NDK/JDK 全部 zip 便携装 `<仓库>\dev\`（gitignored）；环境注入改会话级 `dev-env.ps1` + cargo 级 `.cargo/config.toml`（相对路径、无 force、已提交），版本化 NDK 与 Windows linker 走 gitignored `config.local.toml`（模板 `.example`）；JDK 定 Temurin 21；「全局优先、便携兜底」，全局依赖机零介入。相关改动：§1 矩阵路径、§2.4、§2.5、新增 §2.6、§4.2、§5、§6、§7。
 - 2026-08-09：初始化本文档；本机环境核对（Rust 1.97.1 / MSVC 工具链已装未激活 / dx、JDK、Android SDK、NDK 待装 / VS Build Tools 待装）。新增 §4 依赖升级策略（Rust 依赖 / 工具链 / Dioxus 框架 / 升级后必跑清单）。
 - 2026-08-09：MSVC 钉版实操——18.6+ workload 默认带 Latest（14.51）致与 14.50 并存，卸载 Latest 后清理 stub 目录 + `v145.default.txt` 残留；smoke 构建（1.97.1-msvc）验证链接走 14.50；默认工具链切至 `stable-x86_64-pc-windows-msvc`。§2.1 增补装法 B（纯组件，理论）。
 - 2026-08-09：环境按 M0/M6 两阶段拆分——§1 矩阵加阶段列；§2 顶部加安装总览并重排（§2.3 dx / §2.4 JDK / §2.5 SDK+NDK，后两者标「M6 暂缓」）；§2.2 改 M0 版 toml（去 android targets）；§3 验收删 Android 试用段并保留 M6 指引；§5 拆两阶段体积表；§6 更新 dx doctor 行；新增 §7 过渡清单。

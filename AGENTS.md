@@ -47,6 +47,7 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 
 - `rust-toolchain.toml` 钉 1.97.1（minimal profile）；本地 MSVC 钉 14.50；勿随手升级
 - 版本约束只钉在根 `[workspace.dependencies]` 一处；升级后必须 `cargo test` + `cargo audit`
+- Android 工具链便携隔离：`.cargo/config.toml`（已提交，相对路径 `[env]` + include 本地覆盖）注入环境；`dev/` 工具树与 `config.local.toml` gitignored；机制见 [doc/env.md §2.6](doc/env.md#26-环境注入机制cargo-配置与-dev-envps1)（M6 生效）
 
 ## 架构约定（改代码前先读 project.md）
 
