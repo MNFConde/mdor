@@ -1,6 +1,7 @@
 /target
 /script/.venv
 /tmp
+__pycache__/
 
 # 便携工具链树（仅 dev-env.ps1 跟踪）；机制见 doc/env.md §2.6
 /dev/*
