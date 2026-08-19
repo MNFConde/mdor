@@ -1,0 +1,8 @@
+# Android 工具链环境注入（相对仓库根，机器无关，可提交）
+# 版本化 NDK 路径与本机 linker 在 .cargo/config.local.toml（gitignored）
+# 模板见 .cargo/config.local.toml.example；机制与版本事实源见 doc/env.md §2.6 / §1
+# 无 force：已存在的环境变量优先（全局依赖机零介入）；rust-analyzer 内嵌 cargo 一并生效
+include = [{ path = "config.local.toml", optional = true }]
+
+[env]
+ANDROID_HOME = { value = "dev/android", relative = true }

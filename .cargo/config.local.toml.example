@@ -1,0 +1,11 @@
+# 复制为 config.local.toml（gitignored），按本机实际填写后生效。
+# 版本号事实源：doc/env.md §1；以下路径相对 .cargo 父目录（仓库根）。
+
+[env]
+NDK_HOME           = { value = "dev/android/ndk/29.0.14206865", relative = true }
+ANDROID_NDK_HOME   = { value = "dev/android/ndk/29.0.14206865", relative = true }
+
+# 交叉链接器：NDK 自带的 .cmd 包装，Windows 专用；非 Windows 克隆不可用，故不提交正式文件。
+# 若全局环境已提供链接器（如 CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER），可省略本段。
+[target.aarch64-linux-android]
+linker = "dev/android/ndk/29.0.14206865/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android30-clang.cmd"
