@@ -23,6 +23,7 @@
 | [D-11](#d-11-tls-与加密选型) | TLS：rustls + platform-verifier + ring，gix 用 reqwest 后端 | 已决策 | [diff.md §1.6](diff.md#16-端到端对比与推荐方案) |
 | [D-12](#d-12-依赖与安全审计) | tokio + 依赖版本统一 + `cargo audit`（不引入 cargo deny） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
 | [D-13](#d-13-数据目录注入) | 数据目录注入；Android `getFilesDir()` / Windows exe 同目录（便携式） | 已决策 | [project.md §9](project.md#9-存储布局) |
+| [D-14](#d-14-单人仓库协作与外部贡献流程) | 单人仓库协作：直推 master 保线性 + 外部 PR squash 合入 | 已决策 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ---
 
@@ -377,6 +378,30 @@
 **依据**：差异收敛在"数据根"一层，根之下 `data/bookstore/` 是产品自定义结构、与平台无关，core 只依赖这一层；Windows 选 exe 同目录不污染 `%APPDATA%`/系统目录，数据随 exe 走、整目录可拷贝迁移。
 
 **影响**：Android 卸载即丢（离线书可重下，可接受）；JNI 路径只能在运行时获取（`main()` 阶段拿不到）。
+
+## D-14 单人仓库协作与外部贡献流程
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-08-20 | [CONTRIBUTING.md](../CONTRIBUTING.md)（仓库根，操作规范） |
+
+**背景**：仓库为单人维护，未来可能出现偶尔的外部贡献。需要一套"自己不被流程绊住、把规范成本压在外部贡献侧"的协作模式。本决策属协作流程而非架构选型，按 [doc/AGENTS.md](AGENTS.md) 约定本应不入 doc/；因决策留痕需要记录于此，操作规范单源落在仓库根 `CONTRIBUTING.md`，此处不重复展开。
+
+**决策**：
+
+- **日常（维护者）**：直接提交到 `master`，保持 fast-forward 线性历史；本地先跑质量门禁再提交；分支仅用于隔离实验/长周期工作（`experiment/*`，用完即弃）。
+- **外部贡献**：`fork + PR`；PR 一律 **squash-and-merge** 合入（合成原子 commit，PR 标题承载 Conventional Commits 规范）；合并前 CI 全绿。
+- **分支保护**：不开硬保护——fork 天然无法推送 master，外部风险面为零；最多在 PR 上要求 CI 通过。
+- **文档**：仓库根 `CONTRIBUTING.md` 写简短说明（fork 流程、钩子安装一步、PR 标题规范、质量门禁命令），不写重流程文档。
+
+**依据**：
+
+- 单人直推 master 是 trunk-based 单人实践，避免"给自己开 PR"的流程成本，同时保持历史线性（可读性 + `git bisect` 可用性）
+- 外部 PR squash 合入是单人维护开源项目的社区标准：把"教贡献者规范"的成本转为"合并时统一"，历史保持原子化
+- fork 模型天然隔离写权限，分支保护对单人近乎零收益，故不做硬卡
+- 与既有 Conventional Commits 钩子（`.agents/rules/commit.md`）协同：自己的提交遵循规范，外部 PR 由 squash 时 PR 标题承载规范
+
+**影响**：master 保持全绿、线性；每次外部 PR 合入 = 一个 squash commit；不引入 Git Flow / 复杂工具链；后续若有长期协作者加入，再评估升级为「PR + 分支保护」常规多人流程。
 
 ---
 
