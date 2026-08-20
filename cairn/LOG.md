@@ -2,6 +2,12 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-20 · manifest 收敛 workspace 层 + D-14 单人仓库协作决策定稿
+
+- `build(workspace)`：根加 `[workspace.package]`（version/edition/rust-version=1.97.1 统一）+ `[workspace.lints]`（unsafe_code=deny）；两成员 `version/edition/rust-version` 改 `workspace = true` 继承 + `publish = false`。门禁（fmt/clippy/test）全绿。
+- `docs`：单人维护 + 偶尔外部贡献的协作模式定稿——维护者直推 master 保线性、外部 PR 一律 squash 合入；决策留痕 [decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)，操作规范单源落仓库根 `CONTRIBUTING.md`（协作流程属约定不入 doc/，仅留痕不展开），AGENTS.md 补协作模式指针。
+- 门禁：`check-links.py` 通过（231 anchors）。
+
 ## 2026-08-20 · 便携 Android 工具链方案定稿（dev/ + 提交相对路径 .cargo 配置）
 
 - 评估 Podman6（仅 Linux VM、无 Windows 容器计划，GH #27842）与 Hyper-V Windows VM（过重）后，定「本机便携隔离」：Android SDK/NDK/JDK 全部 zip 便携装 `<repo>\dev\`（gitignore，M6 执行）；不写任何持久环境变量。
