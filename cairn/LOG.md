@@ -2,6 +2,13 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-21 · 小节标题统一为中文（zh-glossary）+ 毕业候选盘点
+
+- 14 篇知识专题文档的英文小节标题按 zh-glossary 固定词统一：Lessons→教训、Current Conclusions→当前结论、Practice Guide→实践指南、Open Questions→开放问题；文件名保持英文 slug（skill 规则：`language: zh` 只约束正文与标题，不改文件名）。
+- 过程坑：PowerShell 5.1 `Get-Content -Raw` 对无 BOM UTF-8 按 ANSI/GBK 误读，回写造成字节级损坏；从 `experiment/cairn-track` 分支（cairn/ 已跟踪、版本仅差一晚）按 blob 字节恢复后以 .NET UTF-8 无 BOM I/O 重做。已沉淀 [powershell-encoding.md](powershell-encoding.md)。
+- 毕业候选盘点完成（未写入知识库）：Tier A 四篇（cargo-audit-behavior / windows-scripts / metadata-write-reliability / cargo-config-toml）、Tier B 六篇（gix-windows-pitfalls 仅已验证部分 / windows-msvc-toolchain / android-cross-compile-rust / local-resource-channel / mcp-doc-retrieval / dioxus-cli-0.7-config）；Tier C 四篇不标记。毕业时需重跑 obsidian-preflight + INDEX 查重。
+- 更正：恢复源实为 master 自身历史——cairn/ 与 `.cairn/config.yaml` 均已被 master 跟踪（自 `68398e2` 起），并非依赖 `experiment/cairn-track` 分支；该分支与 master 完全同步、无独有内容（保留不删）。
+
 ## 2026-08-20 · manifest 收敛 workspace 层 + D-14 单人仓库协作决策定稿
 
 - `build(workspace)`：根加 `[workspace.package]`（version/edition/rust-version=1.97.1 统一）+ `[workspace.lints]`（unsafe_code=deny）；两成员 `version/edition/rust-version` 改 `workspace = true` 继承 + `publish = false`。门禁（fmt/clippy/test）全绿。
