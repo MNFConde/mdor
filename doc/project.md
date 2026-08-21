@@ -705,6 +705,7 @@ mdor/
 │   │       ├── lib.rs
 │   │       ├── error.rs               # 统一错误类型
 │   │       ├── model/                 # §5 数据模型（纯数据，无 IO）
+│   │       │   ├── mod.rs             #   模块聚合
 │   │       │   ├── book.rs            #   Book
 │   │       │   ├── snapshot.rs        #   VersionSnapshot / SnapshotMeta
 │   │       │   ├── toc.rs             #   TocEntry

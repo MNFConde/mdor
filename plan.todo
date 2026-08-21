@@ -16,40 +16,36 @@ M0 桌面开发环境:
 
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
-    workspace 重构:
+    推进方式：功能纵向切片——每片端到端打通，以可运行验证收尾（26-08-21 由模块罗列式重排）
+    已完成:
         ✔ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high @done(26-08-19 23:38)
         ✔ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high @done(26-08-19 23:38)
         ✔ 删根 src/，建 crates/mdor-core（lib）+ crates/mdor-app（bin）骨架 @high @done(26-08-19 23:38)
-    mdor-core（纯 Rust 平台无关）:
-        error 与 model:
-            ☐ error.rs：统一错误类型（thiserror）
-            ☐ model/：Book / VersionSnapshot / TocEntry / ReadingPosition / MigratedPosition（serde）
-            ☐ model 单测：序列化往返、TOC 构造
-        store（§6.7 原子写 + §9 存储布局）:
-            ☐ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限）
-            ☐ store/library.rs：library.json（原子写，提交点）
-            ☐ store/progress.rs：progress.json（原子写，仅 rename）
-            ☐ store/snapshot.rs：git 仓库快照（gix：clone/fetch/自建 commit/版本 tag/checkout）
-        source（§4 输入插件）:
-            ☐ source/mod.rs：SourceKind + SourceAdapter trait + FetchResult
-            ☐ source/registry.rs：SourceRegistry（detect 遍历）
-        versioning 与 migration（§7/§8）:
-            ☐ versioning.rs：commit/版本 tag 生成、HEAD/ref 维护（gix）
-            ☐ migration/mod.rs：PositionMigrator trait
-            ☐ migration/path.rs：PathMigrator（v1 默认，按章节路径映射）
-        services（§6.9 薄门面 + 命令化）:
-            ☐ services/app_service.rs：AppService 门面
-            ☐ services/commands/mod.rs：Command trait + 命令队列
-            ☐ services/commands/update_book.rs：UpdateBookCommand 占位
-        gix 冒烟:
-            ☐ gix 存储基座冒烟单测：建仓库/打 tag/内容去重 @high
-        ☐ cargo test -p mdor-core 全绿 @critical
-    mdor-app UI 壳:
         ✔ Dioxus.toml + 书架骨架（中文 UI，dioxus 0.7.x）@high @done(26-08-19 23:38)
         ✔ dx serve --platform desktop 弹窗（= M0 验收 + M1 书架骨架）@critical @done(26-08-19 23:38)
-    CI:
+    切片1 书架持久化:
+        ☐ error.rs：统一错误类型（thiserror）@high
+        ☐ model::Book（serde；TocEntry 等其余模型随用随建，不一次建全）
+        ☐ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限，§6.7）
+        ☐ store/library.rs：library.json 载入/保存（原子写 = 提交点语义）
+        ☐ 切片验证：model 序列化往返 + 原子写单测，cargo test -p mdor-core 绿 @critical
+    切片2 阅读进度:
+        ☐ model::ReadingPosition + progress.json 存取（原子写仅 rename 层）
+        ☐ 切片验证：进度读写往返单测
+    切片3 gix 快照基座:
+        ☐ store/snapshot.rs：init/自建 commit/版本 tag/checkout（gix，§9 存储布局）
+        ☐ versioning.rs：版本 tag 生成与 HEAD/ref 维护（§7）
+        ☐ 切片验证：gix 冒烟单测（建仓/tag/内容去重）@high
+    切片4 服务接线:
+        ☐ source/mod.rs + registry.rs：SourceKind + SourceAdapter trait + SourceRegistry（detect 遍历，实现留 M2，§4）
+        ☐ migration/mod.rs + path.rs：PositionMigrator trait + PathMigrator 占位（MigratedPosition 随此引入，§8）
+        ☐ services/app_service.rs：AppService 门面（add_book/open_reading 合并调用，§6.9 薄门面）
+        ☐ services/commands/：Command trait + 命令队列 + UpdateBookCommand 占位
+        ☐ mdor-app 书架经 AppService 渲染 library.json 数据
+        ☐ 切片验证：dx serve 弹窗显示真实书架数据 @critical
+    切片5 CI 收尾:
         ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
-    ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
+        ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）
