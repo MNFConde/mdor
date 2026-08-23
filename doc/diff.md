@@ -141,6 +141,8 @@ RSX（组件树）→ 虚拟 DOM → HTML/CSS/JS → 注入 WebView → 屏幕
 
 Rust 与网页通过桥接双向通信。**"WebView 宿主差异"的本质**：同一个 Rust 应用，Windows 用微软的 WebView2 内核，Android 用安卓的 System WebView，两者对接方式完全不同。
 
+> UI 框架选型（为何 Dioxus 而非 Tauri / Electron / Flutter）的完整论证见 [D-15](decisions.md#d-15-ui-框架选型)；本节只讲差异本身。
+
 ### 2.2 底层三件套
 
 | 库 | 作用 | Windows 端 | Android 端 |

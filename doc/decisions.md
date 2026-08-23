@@ -24,6 +24,7 @@
 | [D-12](#d-12-依赖与安全审计) | tokio + 依赖版本统一 + `cargo audit`（不引入 cargo deny） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
 | [D-13](#d-13-数据目录注入) | 数据目录注入；Android `getFilesDir()` / Windows exe 同目录（便携式） | 已决策 | [project.md §9](project.md#9-存储布局) |
 | [D-14](#d-14-单人仓库协作与外部贡献流程) | 单人仓库协作：直推 master 保线性 + 外部 PR squash 合入 | 已决策 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| [D-15](#d-15-ui-框架选型) | UI 框架 = Dioxus（RSX 单语言 Rust，WebView 渲染路线） | 已决策 | [project.md §1.2](project.md#12-技术栈) |
 
 ---
 
@@ -402,6 +403,34 @@
 - 与既有 Conventional Commits 钩子（`.agents/rules/commit.md`）协同：自己的提交遵循规范，外部 PR 由 squash 时 PR 标题承载规范
 
 **影响**：master 保持全绿、线性；每次外部 PR 合入 = 一个 squash commit；不引入 Git Flow / 复杂工具链；后续若有长期协作者加入，再评估升级为「PR + 分支保护」常规多人流程。
+
+## D-15 UI 框架选型
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-08-23 | [project.md §1.2](project.md#12-技术栈) |
+
+**背景**：UI 框架是骨架期最先敲定的选型之一，但当时只有结论没有论证留痕。约束条件：目标双端为 Windows（开发端）+ Android（一级支持）；书籍内容本身就是 HTML（mdBook 产物 / 渲染好的静态站），阅读页的核心诉求是**富 HTML 排版显示**；架构基石要求业务逻辑收敛在纯 Rust 的 `mdor-core`、桌面可直接 `cargo test`。
+
+**决策**：选 **Dioxus 0.7**——RSX 编译为虚拟 DOM 后注入 WebView 渲染，UI 与 core 同为 Rust、直接函数调用，无 IPC/FFI 语言边界。
+
+**依据**：
+
+- **「WebView 当显示器」是顺势而非妥协**：内容本身是 HTML，WebView 路线天然获得完整浏览器排版能力；App 自身 UI（书架/设置/抽屉）足够简单，不需要自绘引擎
+- **wry 只抹 API 封装层，不抹引擎差异**：所有 WebView 容器框架面对同一份系统内核碎片化（[diff.md §2](diff.md#2-webview-宿主影响-app-层差异最大)），选型真正比的是「谁把需要应用侧兜底的平台差异与语言边界压得更小」
+- **单语言 Rust**：对比 JS 前端 + Rust 后端的双语言方案，省掉序列化边界与两套工具链；对比 Dart/Flutter，保住「core 纯 Rust 桌面直测」（§2 原则 2）与既有 Rust 生态依赖（gix / pulldown-cmark / scraper）
+- **双端覆盖**：Dioxus 0.7 Android 一级支持 + Windows 开发端，均走 Chromium 内核
+
+### 被否定的替代方案
+> [!CAUTION] 【已否决】 被否定的替代方案
+> 原因：详见下列各项
+> 
+> - **Tauri**：底层同为 wry，引擎碎片化是共同底色且直接砸在自家 JS/TS 前端代码上（CSS 兼容、各平台桥接怪癖全要应用层自己兜）；多一层 JS↔Rust IPC 序列化边界；其最大痛点 Linux WebKitGTK 与其余三端的内核代差虽被 mdor「双端皆 Chromium」绕开，但其余否决理由独立成立。移动端支持 Tauri 2.0 才加入，成熟度弱于 Dioxus 0.7 的 Android 一级支持
+> - **Electron**：自带完整 Chromium，渲染零碎片化是最强一致性卖点；但**无官方 Android 支持 = 目标平台不覆盖**（非成熟度可弥补）；安装包 ~80–150 MB + 内存占用高，对离线阅读器过重；Node.js 栈推翻纯 Rust core 架构基石
+> - **Flutter**：自带渲染引擎不经过系统 WebView——但富 HTML 书页排版需自行解决（自绘引擎无浏览器排版能力，简化 HTML 解析组件对 mdBook 复杂书页保真度存疑）；整个应用活在 Dart 世界，保留 Rust core 需经 `dart:ffi` 三层桥接（Dart UI + FFI + Rust 库），构建链（cargo-ndk + Gradle）、内存管理、调试全面复杂化
+> - **自绘 Rust（egui / iced / Slint）**：同样无 HTML 排版能力，即时模式/自绘管线渲染不了长文档书页，与阅读器核心诉求错位
+
+**影响 / 诚实成本**：引擎差异并不因此消失——样式差异靠内联书籍 CSS 对冲（[D-06](#d-06-静态资源分流)），**渲染性能随各端系统 WebView 版本浮动、无法对冲**，只能架构性压小依赖面（业务全在 core、阅读页不用脚本、UI 由 Dioxus 自绘），剩余风险归拢 M6 真机验证（A1–A3 / D1，见 [project.md §10.1](project.md#101-m6-真机验证清单)）；dioxus 库与 dioxus-cli 配对升级为硬约束（[env.md §4.3](env.md#43-框架-dioxus-dx必须同步)）。
 
 ---
 

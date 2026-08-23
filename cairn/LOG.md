@@ -2,6 +2,14 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-23 · UI 框架选型论证留痕（D-15）+ webview 差异专题扩充
+
+- 会话讨论「Dioxus 是否抹平 webview 差异」引出选型论证补记：新建 ADR [decisions.md D-15](../doc/decisions.md#d-15-ui-框架选型)——Dioxus 选型留痕 + 四路线否决理由（Tauri/Electron/Flutter/自绘 Rust）；project.md §1.2 补反向链接。
+- 核心定性：wry/Dioxus 只抹 API 封装层不抹引擎差异；样式碎片化可对冲（内联 CSS），**性能随系统 WebView 版本浮动不可对冲**，只能架构性压小依赖面。
+- 沉淀：[webview-host-differences.md](webview-host-differences.md) 教训区新增第 7 条（API 抹平边界 + 性能碎片化）；新建 [ui-framework-selection.md](ui-framework-selection.md)（四路线横向对比背景知识，论证细节链接回 D-15 不复制）。
+- 工具链：check-links.py 扫描范围扩至 cairn/ 顶层（跨文件目标改按源文件目录相对路径解析，负例冒烟通过）——修复「cairn→doc 链接不被门禁覆盖」盲区；LOG 两处根相对链接（`doc/…`）统一为源目录相对（`../doc/…`）；diff.md §2.1 补 D-15 导航指针。
+- 门禁：`check-links.py` 通过（245 anchors，含 cairn 侧新覆盖 6 处）。
+
 ## 2026-08-21 · 小节标题统一为中文（zh-glossary）+ 毕业候选盘点
 
 - 14 篇知识专题文档的英文小节标题按 zh-glossary 固定词统一：Lessons→教训、Current Conclusions→当前结论、Practice Guide→实践指南、Open Questions→开放问题；文件名保持英文 slug（skill 规则：`language: zh` 只约束正文与标题，不改文件名）。
@@ -12,7 +20,7 @@
 ## 2026-08-20 · manifest 收敛 workspace 层 + D-14 单人仓库协作决策定稿
 
 - `build(workspace)`：根加 `[workspace.package]`（version/edition/rust-version=1.97.1 统一）+ `[workspace.lints]`（unsafe_code=deny）；两成员 `version/edition/rust-version` 改 `workspace = true` 继承 + `publish = false`。门禁（fmt/clippy/test）全绿。
-- `docs`：单人维护 + 偶尔外部贡献的协作模式定稿——维护者直推 master 保线性、外部 PR 一律 squash 合入；决策留痕 [decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)，操作规范单源落仓库根 `CONTRIBUTING.md`（协作流程属约定不入 doc/，仅留痕不展开），AGENTS.md 补协作模式指针。
+- `docs`：单人维护 + 偶尔外部贡献的协作模式定稿——维护者直推 master 保线性、外部 PR 一律 squash 合入；决策留痕 [decisions.md D-14](../doc/decisions.md#d-14-单人仓库协作与外部贡献流程)，操作规范单源落仓库根 `CONTRIBUTING.md`（协作流程属约定不入 doc/，仅留痕不展开），AGENTS.md 补协作模式指针。
 - 门禁：`check-links.py` 通过（231 anchors）。
 
 ## 2026-08-20 · 便携 Android 工具链方案定稿（dev/ + 提交相对路径 .cargo 配置）

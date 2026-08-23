@@ -22,7 +22,7 @@
 | 项 | 选择 | 说明 |
 |---|---|---|
 | 语言 | Rust (edition 2024) | 当前 1.97.1 |
-| UI 框架 | Dioxus 0.7 | WebView 渲染，Android 一级支持 |
+| UI 框架 | Dioxus 0.7 | WebView 渲染，Android 一级支持；选型论证见 [D-15](decisions.md#d-15-ui-框架选型) |
 | 构建 | dioxus-cli (`dx`) | `dx serve --platform android` |
 | HTTP | reqwest (rustls) | Android 无 OpenSSL 依赖 |
 | HTML 解析 | scraper | 抽取 mdBook `<main>` 内容 |

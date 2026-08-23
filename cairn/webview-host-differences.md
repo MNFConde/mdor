@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "WebView 宿主双端差异：入口模型（main vs AndroidMain 被生命周期叫醒）、线程纪律（UI 必须主线程/tokio 显式切回）、运行时可得性、内核版本不一致与内联 CSS 对冲、DevTools/热更差异"
+summary: "WebView 宿主双端差异：入口模型（main vs AndroidMain 被生命周期叫醒）、线程纪律（UI 必须主线程/tokio 显式切回）、运行时可得性、内核版本不一致与内联 CSS 对冲、API 抹平边界（wry 只抹封装层）与性能碎片化不可对冲、DevTools/热更差异"
 tags: [mdor, webview, winit, wry, android-activity, threading, dioxus]
 contains: [lesson, decision, open_question]
 created: "2026-08-16"
-updated: "2026-08-21"
+updated: "2026-08-23"
 related: [diff.md, project.md, decisions.md]
 authoring_mode: ai_generated
 ---
@@ -23,6 +23,7 @@ authoring_mode: ai_generated
 4. **双端内核版本不一致 → 内联 CSS 对冲**：都是 Chromium 但版本不同（WebView2 跟 Edge、Android 跟系统），CSS/JS 有细微差异——RenderService「内联书籍 CSS 保证样式一致」即为此对冲（`doc/project.md` §6.5）。
 5. **DevTools/热更差异**：Windows 是 WebView2 自带调试器（F12 类）+ `dx serve` 直接热更；Android 是 `chrome://inspect` + adb 远程调试、需连设备/模拟器、迭代慢。
 6. **差异全在 mdor-app，core 不碰 WebView**：依赖分层用 `[target.'cfg(target_os = "android")'.dependencies]` 隔离；资源/渲染协议差异已由 D-04/D-05/D-06 定案（见 `local-resource-channel.md`）。
+7. **Dioxus/wry 只抹「API 封装层」，不抹引擎差异**：窗口/事件循环、JS↔Rust 桥接调用方式、`asset!()` 打包、`dx serve --platform xxx` 构建命令被统一封装；但内核版本不一致（样式可对冲）与**渲染性能碎片化（不可对冲）**仍在——Android System WebView 版本随系统/商店更新浮动，低端机与旧内核的滚动、渲染性能由系统内核决定，框架无法代管。对冲思路是架构性的：业务全在 core（不碰 WebView）、阅读页不用脚本、UI 由 Dioxus 自绘，把 WebView 只当「HTML 显示器」用，压小对引擎行为的依赖面。选型层面的完整论证见 `doc/decisions.md` [D-15](../doc/decisions.md#d-15-ui-框架选型)。
 
 ## 当前结论
 
