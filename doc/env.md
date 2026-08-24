@@ -49,6 +49,19 @@
 - **项目 crates 依赖**（serde / thiserror / tokio / reqwest / scraper / pulldown-cmark / gix 等）：版本**不在本文档确认**，按 [project.md §12.1](project.md#121-关键设计决策) 于 M1 建 workspace 时在根 `[workspace.dependencies]` 取当时稳定版钉下；唯一例外 **dioxus 库跟随 dioxus-cli**——dx 0.7.10 ↔ dioxus 0.7.x 配对升级（§4.3）。
 - **`--locked` vs `--version`**：「不钉版本」只指不钉工具自身版本号（`--version`）；依赖图可复现（`--locked`）对所有 `cargo install` 一律启用，两者独立、互不替代。
 
+### 开发环境拓扑
+
+> 三端分工的论证与资源预算账见 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)；此处只落事实。VirtualBox 自定义目录安装坑见 [cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)。
+
+| 端 | 角色 | 事实 |
+|---|---|---|
+| 宿主机 Windows 原生 | Windows 桌面端构建+验证；安卓模拟器宿主 | VirtualBox **7.2.16** r174877 @ `D:\VirtualBox` + Extension Pack；Android Studio **待装**（走 Scoop）；SDK → `D:\Software\Android\Sdk`、AVD 目录由 `ANDROID_AVD_HOME=D:\Software\Android\avd` 指定（路径已定，未落地） |
+| nixos-wsl | 日常主力 Linux 环境（Remote-WSL/SSH；Android 交叉编译；产物 `adb connect` 推宿主机模拟器） | WSL2 默认发行版已就绪；开发依赖**待建**仓库 `flake.nix` 单源管理（不走 §1 矩阵的 `<仓库>\dev\` 便携树——那是宿主机 M6 方案）；`.wslconfig` 上限 4 核 / 6G |
+| ubuntu-dev VM（备用） | 仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通 | Ubuntu **24.04.4** Desktop（无人值守安装），4 核 / 6G 内存 / 80G 动态 VDI / EFI / NIC1=NAT + NIC2=Host-Only / USB3.0(xHCI)；配置与磁盘在 `D:\Software\VM_Resource\ubuntu-dev\`；环境同样走 `flake.nix` |
+
+- 备用化最小配置（首次触发使用场景前补齐）：Guest Additions、openssh-server、git、Nix multi-user、装完快照。
+- ISO/extpack 等安装介质统一放 `D:\Software\VM_Resource\`。
+
 ---
 
 ## 2. 安装步骤（按依赖顺序）
@@ -425,6 +438,8 @@ cargo check --target aarch64-linux-android -p mdor-app   # 交叉冒烟（含 ri
 ---
 
 ## 8. 记录
+
+- 2026-08-24：§1 新增「开发环境拓扑」小节——三端架构（宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用）落地事实：VirtualBox 7.2.16 @ `D:\VirtualBox`、ubuntu-dev（24.04.4 无人值守装好）配置、Android Studio/SDK/AVD 的 D 盘路径；决策留痕 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)。
 
 - 2026-08-20：定稿便携 Android 工具链方案——SDK/NDK/JDK 全部 zip 便携装 `<仓库>\dev\`（gitignored）；环境注入改会话级 `dev-env.ps1` + cargo 级 `.cargo/config.toml`（相对路径、无 force、已提交），版本化 NDK 与 Windows linker 走 gitignored `config.local.toml`（模板 `.example`）；JDK 定 Temurin 21；「全局优先、便携兜底」，全局依赖机零介入。相关改动：§1 矩阵路径、§2.4、§2.5、新增 §2.6、§4.2、§5、§6、§7。
 - 2026-08-09：初始化本文档；本机环境核对（Rust 1.97.1 / MSVC 工具链已装未激活 / dx、JDK、Android SDK、NDK 待装 / VS Build Tools 待装）。新增 §4 依赖升级策略（Rust 依赖 / 工具链 / Dioxus 框架 / 升级后必跑清单）。

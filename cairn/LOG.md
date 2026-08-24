@@ -2,6 +2,19 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-24 · 开发环境三端架构定稿（D-16）+ VirtualBox 安装坑沉淀
+
+- 会话起于 VirtualBox「invalid installation directory」安装报错：哈希比对证明镜像站文件完好后定位为 7.0.14+ 目录安全校验；官方 icacls Deny 配方反噬管理员（`Authenticated Users` 在任何管理员令牌内，Deny 优先 → MSI 1303），改 `/inheritance:r` + 仅授 RX 解决。VirtualBox 7.2.16 落地 `D:\VirtualBox`。
+- 架构决策 [decisions.md D-16](../doc/decisions.md#d-16-开发环境三端架构)：宿主机原生管桌面构建+安卓模拟器；**nixos-wsl 为日常主力**（Remote-WSL/SSH + 交叉编译，产物 adb connect 推宿主机模拟器）；ubuntu-dev VM（24.04.4 已装）备用，仅 dioxus 桌面调试与真机 USB 直通时启用；环境复现单源 = 仓库 `flake.nix`，WSL/VM 共用。VM 内跑 AVD 因嵌套虚拟化被否决。
+- 沉淀：新建 [vbox-windows-install.md](vbox-windows-install.md)（坑链 + 正确 icacls 配方 + `%TEMP%\MSI*.LOG` 排查法）；[env.md §1](../doc/env.md#1-环境总览与版本矩阵) 新增「开发环境拓扑」小节落事实。
+- 待办：flake.nix 编写、Android Studio(scoop)/SDK/AVD 迁 D 盘、VM 备用化最小配置——均未执行。
+
+## 2026-08-23 · opencode 会话备份两段式编码坑（UTF-16 容器 + GBK 管道损坏）
+
+- opencode 会话备份导入两连败：先「Unrecognized token '�'」（PS 5.1 `>` 落盘 UTF-16 LE，教训 6）；转码修好容器后仍报错——根因是导出时 PS 管道把 opencode 的 UTF-8 stdout 按 GBK 解码，中文固化为 652 个 PUA 字符 + `?` 替换，**内容导出即损坏、不可逆**。
+- 修复：`cmd /c "opencode export <id> > file"` 直通原始字节重导出——JSON 解析通过、4904 汉字完好，`opencode import` 成功恢复会话 ses_fd0e80a5。
+- 沉淀：[powershell-encoding.md](powershell-encoding.md) 教训区新增第 6 条（UTF-16 LE 写侧）与第 7 条（管道捕获损坏）+ 当前结论补「UTF-16 → UTF-8 转码」「cmd 直通原始字节」两姿势 + 实践指南补导出三件套断言；summary 同步。
+
 ## 2026-08-23 · UI 框架选型论证留痕（D-15）+ webview 差异专题扩充
 
 - 会话讨论「Dioxus 是否抹平 webview 差异」引出选型论证补记：新建 ADR [decisions.md D-15](../doc/decisions.md#d-15-ui-框架选型)——Dioxus 选型留痕 + 四路线否决理由（Tauri/Electron/Flutter/自绘 Rust）；project.md §1.2 补反向链接。

@@ -432,6 +432,41 @@
 
 **影响 / 诚实成本**：引擎差异并不因此消失——样式差异靠内联书籍 CSS 对冲（[D-06](#d-06-静态资源分流)），**渲染性能随各端系统 WebView 版本浮动、无法对冲**，只能架构性压小依赖面（业务全在 core、阅读页不用脚本、UI 由 Dioxus 自绘），剩余风险归拢 M6 真机验证（A1–A3 / D1，见 [project.md §10.1](project.md#101-m6-真机验证清单)）；dioxus 库与 dioxus-cli 配对升级为硬约束（[env.md §4.3](env.md#43-框架-dioxus-dx必须同步)）。
 
+## D-16 开发环境三端架构
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-08-24 | [env.md 开发环境拓扑](env.md#开发环境拓扑)、[cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)（安装坑） |
+
+**背景**：mdor 双目标为 Windows 桌面（开发端）+ Android；宿主机资源有限（6C12T / 15G 内存），需同时覆盖三件事——Linux 环境下的可复现开发、安卓产物验证、dioxus Linux 桌面 GUI 调试。候选路线：全部塞进一个 VirtualBox Ubuntu VM、WSL 为主 VM 为辅、全宿主机原生。
+
+**决策**：三端分工——
+
+- **宿主机 Windows 原生**：Windows 桌面端构建与验证（MSVC 本机链，零交叉成本），Android Studio + AVD 模拟器也在此运行
+- **nixos-wsl = 日常主力 Linux 环境**：VSCode Remote-WSL / SSH 命令行作业，Android 交叉编译在此进行，产物经 `adb connect` 直接推到宿主机模拟器
+- **VirtualBox ubuntu-dev VM = 备用环境**，仅两个触发场景：dioxus Linux 桌面 GUI 调试（WSLg 渲染不佳时）、真机 USB 直通验证
+- **环境复现单源 = 仓库 `flake.nix`**：rust 工具链与 NDK 等依赖声明式锁定，WSL 与 VM 共用同一份；apt 仅管系统底座（内核/驱动/sshd）
+
+### 被否定的替代方案
+> [!CAUTION] 【已否决】 安卓模拟器进虚拟机 / 全环境收拢 Ubuntu VM
+> 原因：详见下列各项
+>
+> - **VM 内跑 Android 模拟器（AVD）**：VirtualBox 嵌套虚拟化下 AVD 自身需要的硬件加速无法满足，极慢且经常起不来——模拟器必须放有完整硬件加速的宿主机，VM 只做编译机
+> - **Ubuntu VM 作为唯一日常环境**：常驻分配 6G 内存挤压宿主机；桌面 GUI 对「SSH 命令行为主」的工作流是纯开销；且 nixos-wsl 已就绪、启动秒级、内存按需回收，同等能力下开销全面更低
+
+**依据**：
+
+- 资源预算账（15G 总量）：VM 6G + 模拟器 2–3G + 宿主机 5–6G 恰好成立；VM 与模拟器同时开时 vCPU 取 4 核防打满（6C12T）
+- 复现性诉求：apt 无法锁定环境版本、多套环境互斥；Nix flake 天然按项目隔离且 `flake.lock` 锁版，一份 flake 同时喂 WSL 与 VM，消除「两边包不一致」
+- 工作流形态：大部分时间在宿主机 VSCode 经 Remote-WSL/SSH 操作，仅看安卓效果时回宿主机屏幕——Linux 桌面会话本身价值很低
+
+**影响 / 诚实成本**：
+
+- 新增工程资产 `flake.nix` 需随依赖演进维护；Nix 声明式配置有学习曲线
+- WSLg 下 WebKitGTK 渲染偶发小毛病——触发时退到 ubuntu-dev VM 调试（其存在意义即此兜底）
+- VirtualBox 与宿主机模拟器的虚拟化栈共存（WHPX/AEHD 两种驱动模式）待实测，最坏情况退真机 USB 直通（不受虚拟化冲突影响）
+- ubuntu-dev VM 已完成系统安装（无人值守；版本与配置见 [env.md 开发环境拓扑](env.md#开发环境拓扑)），备用化最小配置（Guest Additions / sshd / Nix / 快照）在首次触发使用场景前补齐即可；安装过程踩坑沉淀于 [cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)
+
 ---
 
 *本文件为决策记录，随实现推进持续更新；新增决策先读 [README.md](README.md#decisionsmd-登记规则)。*

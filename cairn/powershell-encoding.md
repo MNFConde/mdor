@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "PowerShell 5.1 处理无 BOM UTF-8 中文文件的坑：Get-Content 默认按 ANSI/GBK 误读、Set-Content -Encoding UTF8 带 BOM；安全路径 = .NET API 显式 UTF8Encoding($false)；损坏可经 git 历史字节级恢复"
+summary: "PowerShell 5.1 编码坑三向记录：读侧——Get-Content 默认按 ANSI/GBK 误读无 BOM UTF-8；写侧——>/Out-File 默认输出 UTF-16 LE、Set-Content -Encoding UTF8 带 BOM；管道侧——捕获原生命令 UTF-8 stdout 按 GBK 解码致内容导出即损坏（不可逆）；安全路径 = .NET API 显式 UTF8Encoding($false) + cmd /c 直通原始字节；损坏可经 git 历史字节级恢复"
 tags: [cairn, powershell, encoding, utf8, windows, tooling]
 contains: [lesson, procedure, experience]
 created: "2026-08-21"
-updated: "2026-08-21"
+updated: "2026-08-23"
 related: [windows-scripts.md]
 authoring_mode: ai_generated
 ---
@@ -22,6 +22,8 @@ authoring_mode: ai_generated
 3. **`Set-Content -Encoding UTF8`（PS5.1）写入带 BOM**：与仓库既有的无 BOM UTF-8 约定不一致；PS5.1 没有 `utf8NoBOM` 选项（PS 6+ 才有）。
 4. **控制台显示不可信**：工具管道捕获的中文输出可能是显示伪影（乱码 ≠ 文件损坏）；判断文件是否损坏必须程序化断言（如扫描 U+FFFD、校验已知关键词码位），不能靠肉眼。
 5. **gitignore 不等于没有备份**：cairn/ 在 master 被忽略，但实验分支 `experiment/cairn-track` 跟踪了它——分支历史就是恢复源。
+6. **PS 5.1 `>` 重定向 / `Out-File` 默认输出 UTF-16 LE（带 `FF FE` BOM）**（2026-08-23）：导出的 opencode 会话备份 json 被 UTF-16 LE 写出，opencode 导入器按 UTF-8 解析即报「Unrecognized token '�'」——首个字节就是 BOM。读侧教训 1 的镜像坑：PS 5.1 各 cmdlet 默认编码不一致，任何「导出/落盘再被别的程序消费」的文件都不能依赖默认编码。
+7. **PS 管道捕获原生命令的 UTF-8 stdout 按 GBK 解码，内容导出即损坏（不可逆）**（2026-08-23）：`opencode export <id> > file` 在 PS 5.1 下执行——opencode 输出 UTF-8 字节流，PS 按 [Console] 输出编码（GBK）解码成字符串再以 UTF-16 落盘，中文正文被固化为 GBK 假汉字 + PUA 私用区字符（U+E003 等，实测 652 个）+ `?` 替换。这是教训 2 的实例：事后把容器转回 UTF-8 也只是「正确编码的错误内容」，导入器 JSON 校验都过不了。**容器编码可修，管道损坏不可逆**——必须在捕获环节就绕开 PS 解码层。
 
 ## 当前结论
 
@@ -31,10 +33,13 @@ authoring_mode: ai_generated
   $s = [System.IO.File]::ReadAllText($path, $utf8)
   [System.IO.File]::WriteAllText($path, $s, $utf8)
   ```
+- **UTF-16 LE 文件转 UTF-8 无 BOM**：`Get-Content -Raw` 能自动识别 BOM 正确读入，再按上面安全路径写回即可（2026-08-23 实测用于修复 opencode 会话备份导入）。
+- **原生命令输出落盘用 cmd 直通原始字节**：`cmd /c "opencode export <id> > <file>"`——cmd 的 `>` 不解码 stdout，UTF-8 原样落盘。2026-08-23 实证对照：PS 管道版 652 个 PUA 字符报废；cmd 直通版 JSON 解析通过、4904 个汉字完好（残留 U+FFFD 仅在工具输出的二进制/进度条类内容里，不伤结构）。与字节级恢复姿势的 `cmd /c "git show …"` 同一原理。
 - **字节级恢复姿势**：`cmd /c "git show <branch>:<path> > <file>"` 取原始 blob 字节（PowerShell 管道会再编码，不可用）；用 `git hash-object <file>` 对比 `git ls-tree` 的 blob SHA 验证字节一致。
 - **正则替换注意**：`-replace` 的 `\s*` 会吞掉标题后的空行；替换串中 `$1` 后紧跟数字会被解析成多位组号（用 `${1}` 消歧）。
 
 ## 实践指南
 
 - 批量改中文文件前：先确认有备份（git 历史 or 临时副本），改完做程序化校验（U+FFFD 扫描 + 与源 diff 仅含预期行）。
+- 跨程序导出/导入后：程序化断言三件套——BOM 头字节检查、PUA（U+E000–U+F8FF）/U+FFFD 计数、已知关键词检索；控制台显示乱码不算数（教训 4）。
 - 相关：bash 脚本侧的 Windows 姿势见 [windows-scripts.md](windows-scripts.md)。

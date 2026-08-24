@@ -56,3 +56,4 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 业务逻辑/渲染管线全在 core，app 层只做「拿 HTML 注入 + 交互」，不掺业务编排
 - project.md §3.2 C4 图由 `doc/mdor.c4` 生成：`likec4 gen mermaid . -o tmp`（工作区必须是仓库根、即 likec4.config.json 所在目录；否则 `**/archive_doc_v*/**` 排除不生效，`doc/archive_doc_v*/` 里的 mdor.c4 会被扫进来报重复定义）
 - §3.2 节点注记（如 `(v1 默认)` / `(M5 开放)`）必须写进组件 name：likec4 的 mermaid 标签只取 name（title/description/technology 不进标签），组件名规范为「类名 + (注记)」，id 与代码类名一致
+- 开发环境三端架构（宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用，flake.nix 单源）见 [doc/env.md §1 开发环境拓扑](doc/env.md#开发环境拓扑) 与 [decisions.md D-16](doc/decisions.md#d-16-开发环境三端架构)
