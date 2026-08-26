@@ -8,6 +8,7 @@ created: "2026-08-26"
 updated: "2026-08-26"
 related: [decisions.md, env.md]
 authoring_mode: ai_generated
+graduation_status: candidate
 ---
 # Nix 环境外围工具配置（skills-manager / Starship）
 
@@ -38,6 +39,8 @@ skills-manager（管理 `~/.skills-manager` 中央库 + 全部 agent 全局 skil
 3. **`nix build`/`nix eval` 无法用 `#nixosConfigurations...config...` 深层 attrpath**：`.#` 简写会走 `packages.<system>` 命名空间，含 `.config` 的深层路径报「flake does not provide attribute」。**验证单个自定义包**：`sudo nixos-rebuild dry-run`（实例化新 drv）→ `ls -t /nix/store/*<包名>*.drv | head -1` → `nix-store --realise <drv>`。
 4. **`nixos-rebuild dry-run` 只做 dry 计划不实际构建**：产物不落 store（只有 `.drv`），要实构建验证用第 3 条的 `nix-store --realise`。
 5. **AppImage wrapType2 构建慢**（100MB 解包 + fakeroot，本机 >10 分钟）：非配置问题，耐心等或直接交给 rebuild。
+6. **官方 release 锁版技巧**：GitHub Releases API（`api.github.com/repos/<owner>/<repo>/releases/latest`）每资产的 `digest` 字段就是 **sha256 hex**（且附 `browser_download_url` 直链）——抓 API 拿 URL + hex，再 `nix hash convert --hash-algo sha256 --to sri <hex>` 转 Nix SRI（如 `sha256-ytqRv0OUfnYri0elSzFFnEwCr/31mp0uefPs0TLkETI=`），无需本地下载算哈希。适用于任何「官方 release 资产 + Nix 锁版」场景。
+7. **WSLg 可用性三查**（判断 GUI 能否显示到宿主机）：① `/mnt/wslg/` 目录存在（socket/runtime）；② 环境变量 `DISPLAY`、`WAYLAND_DISPLAY`、`XDG_RUNTIME_DIR` 已注入；③ NixOS-WSL 模块 `wsl.enable = true`。三者齐备即 WSLg 正常、X11+Wayland 双协议通，GUI 应用（含 Tauri/webkitgtk）会显示到 Windows 桌面。
 
 ## 实践指南
 
@@ -116,3 +119,32 @@ nix profile install --impure --expr 'let p = import ./skills-manager-pkgs.nix { 
 ```
 
 GUI 只在 ubuntu-dev（真 GUI 环境）跑 Tauri/webkit 稳定；nixos-wsl 若日后需要 GUI，WSLg 实测能显示到宿主机（偶发 webkit 渲染小毛病，D-16 已记录），把 home.nix 里注释的 `skills-manager` 行恢复并按坑 5 接受构建耗时即可。
+
+### skills-manager CLI 使用速查
+
+首次运行自动初始化 `~/.skills-manager` 库；`skills-manager-cli` 由 home-manager 注入 PATH。
+
+```bash
+# 状态 / 基础
+skills-manager-cli repo status                    # 库路径/数据库状态（JSON）
+skills-manager-cli skills list                    # 列出中央库 skills
+skills-manager-cli --json skills list             # JSON 输出（脚本/agent 友好）
+# 安装（默认只进库，不部署到 agent）
+skills-manager-cli skills install ./my-skill                    # 本地目录
+skills-manager-cli skills install https://github.com/foo/bar.git # git URL
+skills-manager-cli skills install user/repo@skill-name          # skills.sh marketplace
+skills-manager-cli skills search react --limit 5                # 搜 marketplace
+# 部署到 agent（关键动作）
+skills-manager-cli skills deploy <ref> --agent claude_code --agent codex
+skills-manager-cli skills status <ref>
+skills-manager-cli skills undeploy <ref> --agent codex          # --dry-run 预览
+skills-manager-cli skills adopt ~/.claude/skills                # 采纳已有 skills
+# 预置组 presets / 更新 / git 备份仓库
+skills-manager-cli presets list / create / deploy ...
+skills-manager-cli skills update --all / check --all
+skills-manager-cli git status / pull / commit -m "..."
+```
+
+- 所有命令支持 `--help`；安全操作可先 `--dry-run`；CLI 与 GUI 共用同一库与锁，可并存。
+- 官方仓库自带 agent 用 skill（`skills/manage-skills`），装进 agent 后 agent 可自助管理 skills。
+- 详细 CLI 命令以官方 README 为准：<https://github.com/xingkongliang/skills-manager#cli>。
