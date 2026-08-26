@@ -36,14 +36,21 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ☐ store/snapshot.rs：init/自建 commit/版本 tag/checkout（gix，§9 存储布局）
         ☐ versioning.rs：版本 tag 生成与 HEAD/ref 维护（§7）
         ☐ 切片验证：gix 冒烟单测（建仓/tag/内容去重）@high
-    切片4 服务接线:
+    切片4 日志基座（tracing）:
+        ☐ [workspace.dependencies] 增 tracing + tracing-subscriber（钉版，随用随建）@high
+        ☐ mdor-core 挂 tracing 门面：业务只打点、不碰配置 @high
+        ☐ mdor-app 桌面接入 tracing-subscriber fmt 层（stdout + RUST_LOG 控级别）；AppService 门面调用打 info（含耗时），错误路径 warn/error + 结构化字段（book_id/version）@high
+        ☐ 切片验证：RUST_LOG=mdor_core=debug 桌面跑动对应级别日志可见 @critical
+        ☐ 明确不做：远端汇聚/指标/分布式追踪/上报（无此需求；tracing 数据模型对齐 OTel，留将来上报的门）
+        ☐ M6 注记（不在本期）：tracing-appender 滚写到 app 数据目录 + adb logcat，发布构建 feature gate 裁剪
+    切片5 服务接线:
         ☐ source/mod.rs + registry.rs：SourceKind + SourceAdapter trait + SourceRegistry（detect 遍历，实现留 M2，§4）
         ☐ migration/mod.rs + path.rs：PositionMigrator trait + PathMigrator 占位（MigratedPosition 随此引入，§8）
         ☐ services/app_service.rs：AppService 门面（add_book/open_reading 合并调用，§6.9 薄门面）
         ☐ services/commands/：Command trait + 命令队列 + UpdateBookCommand 占位
         ☐ mdor-app 书架经 AppService 渲染 library.json 数据
         ☐ 切片验证：dx serve 弹窗显示真实书架数据 @critical
-    切片5 CI 收尾:
+    切片6 CI 收尾:
         ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
         ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
 

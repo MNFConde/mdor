@@ -2,6 +2,15 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-26 · 遥测链路设计 + 模块边界内核 + mdor 日志基座沉淀
+
+- 会话产出（跨项目遥测设计讨论）：多语言（Python×2 / JS 浏览器 / Java）分布式高频遥测链路完整设计归档 [telemetry-schema-registry-design.md](telemetry-schema-registry-design.md)——形态 A（定义层 schema 注册表 + 运行时本地分发）、统一 WebSocket 信封（WS1/WS2 为连接腿标签、per-payload v/ts/seq、WS1 zstd / WS2 deflate、wss）、JSON Schema vs Protobuf+buf 双线工具链（含 Avro 备选）、落地路径；含教训「10ms 连续值=指标非日志」。
+- 可复用内核 [module-boundary-contract-design.md](module-boundary-contract-design.md)：纵切模块×横切数据链路×共享底座；契约=定义/触点=绑定；私有 vs 共享类型；改类型「四处辐射」；形态 A；对 AI/vibe-coding 冲突规避的价值；并入静态/运行时架构项目化一句。
+- mdor 侧决策 [mdor-logging-base.md](mdor-logging-base.md)：M1 切片4 日志基座（tracing）——core 只打点、桌面 RUST_LOG、不引分布式全家桶（留 OTel 门）、M6 appender+logcat（对应 plan.todo）。
+- 命名教训：WS1/WS2 连接腿标签撞名 `ws://` 协议被误当"WebSocket 版本"——文档给连接/组件起标签应避免与既有技术名词撞名（见 telemetry-schema-registry-design.md 约束表）。
+- 外部资料参考：三支柱/工具链背景单开 [Reference/observability-toolchain-basics.md](Reference/observability-toolchain-basics.md)（外部资料定位，只增不改）。
+- 门禁：check-links.py 通过。
+
 ## 2026-08-26 · skills-manager CLI 备份同步机制探索 + 会话知识沉淀
 
 - 会话过程：`git pull` 报 unrelated histories——本机 `git init` 独立空骨架历史 vs 远端（Windows 机）真实备份无共同祖先；本地无数据故 `fetch origin` + `reset --hard origin/main` 对齐远端历史；随后 opencode 识别不到 skill——根因是「git 同步库 ≠ deploy 到 agent 全局目录」两步机制，`skills deploy --agent opencode` 后生效；`presets add-skill` membership 存 SQLite `scenario_skills`（多对多），只改 DB 不部署。
