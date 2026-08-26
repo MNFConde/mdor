@@ -56,7 +56,7 @@
 | 端 | 角色 | 事实 |
 |---|---|---|
 | 宿主机 Windows 原生 | Windows 桌面端构建+验证；安卓模拟器宿主 | VirtualBox **7.2.16** r174877 @ `D:\VirtualBox` + Extension Pack；Android Studio **待装**（走 Scoop）；SDK → `D:\Software\Android\Sdk`、AVD 目录由 `ANDROID_AVD_HOME=D:\Software\Android\avd` 指定（路径已定，未落地） |
-| nixos-wsl | 日常主力 Linux 环境（Remote-WSL/SSH；Android 交叉编译；产物 `adb connect` 推宿主机模拟器） | WSL2 默认发行版已就绪；开发依赖**待建**仓库 `flake.nix` 单源管理（不走 §1 矩阵的 `<仓库>\dev\` 便携树——那是宿主机 M6 方案）；`.wslconfig` 上限 4 核 / 6G |
+| nixos-wsl | 日常主力 Linux 环境（Remote-WSL/SSH；Android 交叉编译；产物 `adb connect` 推宿主机模拟器） | WSL2 默认发行版已就绪；开发依赖由仓库 `flake.nix` 单源管理（2026-08-25 落地：Rust 工具链单源自 `rust-toolchain.toml`、dx 0.7.10 由 shellHook 钉版、质量门禁工具、dioxus 桌面 Linux 库；**Android SDK/NDK/JDK 的声明式锁定 = M6 待办**，见 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)；不走 §1 矩阵的 `<仓库>\dev\` 便携树——那是宿主机 M6 方案）；`.wslconfig` 上限 4 核 / 6G |
 | ubuntu-dev VM（备用） | 仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通 | Ubuntu **24.04.4** Desktop（无人值守安装），4 核 / 6G 内存 / 80G 动态 VDI / EFI / NIC1=NAT + NIC2=Host-Only / USB3.0(xHCI)；配置与磁盘在 `D:\Software\VM_Resource\ubuntu-dev\`；环境同样走 `flake.nix` |
 
 - 备用化最小配置（首次触发使用场景前补齐）：Guest Additions、openssh-server、git、Nix multi-user、装完快照。
@@ -438,6 +438,8 @@ cargo check --target aarch64-linux-android -p mdor-app   # 交叉冒烟（含 ri
 ---
 
 ## 8. 记录
+
+- 2026-08-25：`flake.nix` 落地（D-16「环境复现单源」）——Rust 工具链改用 `rust-bin.fromRustupToolchainFile` 复用 `rust-toolchain.toml` 单一事实源（钉 1.97.1，M6 补 targets 后自动生效）；devShell 补齐 dioxus 桌面 Linux 构建库（webkitgtk_4_1/gtk3/libsoup_3/gdk-pixbuf，服务 ubuntu-dev VM 的 GUI 调试场景）、质量门禁工具（cargo-audit/outdated/edit）；dx 0.7.10 由 shellHook `cargo install --locked` 钉版精确对齐 §1 矩阵。Android SDK/NDK/JDK 的 flake 声明式锁定定为 **M6 待办**（声明即安装、M0 用不到，且 rust targets 亦 M6 才补）。
 
 - 2026-08-24：§1 新增「开发环境拓扑」小节——三端架构（宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用）落地事实：VirtualBox 7.2.16 @ `D:\VirtualBox`、ubuntu-dev（24.04.4 无人值守装好）配置、Android Studio/SDK/AVD 的 D 盘路径；决策留痕 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)。
 

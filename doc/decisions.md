@@ -445,7 +445,7 @@
 - **宿主机 Windows 原生**：Windows 桌面端构建与验证（MSVC 本机链，零交叉成本），Android Studio + AVD 模拟器也在此运行
 - **nixos-wsl = 日常主力 Linux 环境**：VSCode Remote-WSL / SSH 命令行作业，Android 交叉编译在此进行，产物经 `adb connect` 直接推到宿主机模拟器
 - **VirtualBox ubuntu-dev VM = 备用环境**，仅两个触发场景：dioxus Linux 桌面 GUI 调试（WSLg 渲染不佳时）、真机 USB 直通验证
-- **环境复现单源 = 仓库 `flake.nix`**：rust 工具链与 NDK 等依赖声明式锁定，WSL 与 VM 共用同一份；apt 仅管系统底座（内核/驱动/sshd）
+- **环境复现单源 = 仓库 `flake.nix`**：rust 工具链与 NDK 等依赖声明式锁定，WSL 与 VM 共用同一份；apt 仅管系统底座（内核/驱动/sshd）。> **M6 待办**：`flake.nix` 于 2026-08-25 落地（Rust 工具链单源自 `rust-toolchain.toml` / dx 0.7.10 shellHook 钉版 / 质量门禁工具 / dioxus 桌面库），但 **Android SDK/NDK/JDK 的声明式锁定留到 M6**——Nix 下声明即实例化（SDK/NDK 数 GB），M0 用不到且 rust android targets 亦 M6 才补（对应 [env.md §7 过渡清单](env.md#7-m0-到-m6-过渡清单补回-android-侧)）。
 
 ### 被否定的替代方案
 > [!CAUTION] 【已否决】 安卓模拟器进虚拟机 / 全环境收拢 Ubuntu VM

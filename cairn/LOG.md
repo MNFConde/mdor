@@ -2,6 +2,21 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-26 · skills-manager CLI 备份同步机制探索 + 会话知识沉淀
+
+- 会话过程：`git pull` 报 unrelated histories——本机 `git init` 独立空骨架历史 vs 远端（Windows 机）真实备份无共同祖先；本地无数据故 `fetch origin` + `reset --hard origin/main` 对齐远端历史；随后 opencode 识别不到 skill——根因是「git 同步库 ≠ deploy 到 agent 全局目录」两步机制，`skills deploy --agent opencode` 后生效；`presets add-skill` membership 存 SQLite `scenario_skills`（多对多），只改 DB 不部署。
+- 沉淀：新建 [skills-manager-cli.md](skills-manager-cli.md)——备份同步机制（中央库=普通 git 仓库、DB 不入 git 从文件重建、快照 tag `sm-v*`、冲突永不覆盖进 pending_conflicts、勿 raw `--mirror/--all` push 污染 refs/skills-manager/*）+ Q1 远端拉取（`git clone <URL>`，避免 init 撞坑）/ Q2 本地同步（commit→push、pull 行级合并、versions/restore）+ 常用操作速查 + 开放问题（冲突裁决 CLI 缺失、preset membership metadata 往返待实证）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-26 · mdor 项目 flake 落地 + Nix 环境侧外围工具（skills-manager / Starship）
+
+- **项目侧 flake**（`flake.nix`，D-16 环境复现单源落地）：Rust 工具链改 `rust-bin.fromRustupToolchainFile ./rust-toolchain.toml` 单源钉 1.97.1（`profile=minimal` 不含 rustfmt/clippy，须 `.override` extensions 补 rustfmt/clippy/rust-src/rust-analyzer，否则 treefmt 初始化失败）；dx 0.7.10 由 shellHook `cargo install --locked` 钉版（幂等判断须用 `$HOME/.cargo/bin/dx` 绝对路径，非交互 bash PATH 无 `~/.cargo/bin`）；devShell 补 cargo-audit/outdated/edit + dioxus 桌面库（webkitgtk_4_1/gtk3/libsoup_3/gdk-pixbuf，实链接还缺 `libxdo`→补 `xdotool`）。`nix flake check` / `nix fmt --fail-on-change` / 门禁 fmt+clippy+test / `cargo audit`(exit 0) 全绿；`flake.lock` 生成。D-16 与 [env.md §1 拓扑](../doc/env.md#开发环境拓扑) 注明 Android SDK/NDK/JDK 的 flake 声明式锁定 = M6 待办（Nix 声明即实例化、M0 用不到）。
+- **环境侧 `/etc/nixos`**：新增 `module/dev/skills-manager.nix`（overlay 暴露 `skills-manager` GUI = AppImage wrapType2 + `skills-manager-cli` = 官方二进制 + patchelf，锁 v1.34.2；Linux 无 in-app 自更新→声明式锁版）+ `home.nix` 装两包 + `programs.starship`（双行全信息、默认配色）。CLI 已实构建验证（ldd 0 not-found、`repo status` 通）；GUI 构建慢（100MB AppImage 解包）未本地构建，交 rebuild。
+- **坑**：wrapType2 新版须 `pname`+`version`（`name` 报 extract 缺 version）；CLI patchelf 漏 `xz` 致 `liblzma.so.5 not found`；flake 新文件须 `git add` 否则「not tracked」；`nix build/eval '.#nixosConfigurations…config…'` 深层 attrpath 不可用，验证单包用 `dry-run` 取新 drv + `nix-store --realise`；`dry-run` 只 dry 计划不实构建。
+- 沉淀：新建 [nix-env-tooling.md](nix-env-tooling.md)（项目/环境双 flake 分工 + skills-manager 打包方案与坑 + Starship 配置 + ubuntu-dev VM 粘贴即用脚本）。
+- 更正（同日）：skills-manager **GUI 从 nixos-wsl 撤除**——WSLg 实测可显示到宿主机（`/mnt/wslg` + `DISPLAY=:0` + `WAYLAND_DISPLAY=wayland-0` 均在），但 100MB AppImage 构建耗时（>10min）且 webkit 在 WSLg 下偶发渲染问题（D-16）；`module/dev/skills-manager.nix` 只保留 `skills-manager-cli`（patchelf 版），`home.nix` 注释 `skills-manager` 行备恢复；GUI 定义与安装移交 ubuntu-dev（见 nix-env-tooling.md ubuntu 脚本）。
+- 门禁：`check-links.py` 通过。
+
 ## 2026-08-24 · 开发环境三端架构定稿（D-16）+ VirtualBox 安装坑沉淀
 
 - 会话起于 VirtualBox「invalid installation directory」安装报错：哈希比对证明镜像站文件完好后定位为 7.0.14+ 目录安全校验；官方 icacls Deny 配方反噬管理员（`Authenticated Users` 在任何管理员令牌内，Deny 优先 → MSI 1303），改 `/inheritance:r` + 仅授 RX 解决。VirtualBox 7.2.16 落地 `D:\VirtualBox`。
