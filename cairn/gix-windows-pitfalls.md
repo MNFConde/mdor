@@ -41,7 +41,8 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 
 ## 开放问题
 
-- 待 M1 实测项（D-09）：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
+- **M1 Linux 侧已实测**（2026-08-27，切片3）：repo-local `core.autocrlf=false` + `core.longpaths=true` 已落盘、open 入口 `config_overrides` 兜底、CRLF 字节保真单测通过（autocrlf=false 下磁盘字节 ≡ blob 字节）。
+- **Windows 侧遗留实测项**（需宿主机，D-09）：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
 
 ## 实践指南
 

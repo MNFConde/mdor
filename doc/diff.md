@@ -422,7 +422,7 @@ Rust 代码（Path / fs 操作）
 - **变更检测定案**：检测层用原始字节 hash（前提 autocrlf=false），展示层用 gix diff；不用 gix status（stat 快路径被全量重写流击穿）。
 - **待 M1 实测项**：见 [D-09](decisions.md#d-09-gix-三坑配置规避)。
 
-**未决状态**：本节为讨论记录；M1 实测后更新 [§4.3](#43-windows-特有坑android-没有) / [§4.4](#44-对-mdor-的落地影响) 敲定策略。
+**未决状态**：本节为讨论记录；M1 实测后更新 [§4.3](#43-windows-特有坑android-没有) / [§4.4](#44-对-mdor-的落地影响) 敲定策略。**M1 Linux 侧实测（2026-08-27，切片3）**：repo-local 写 `core.autocrlf=false` + `core.longpaths=true` 已落盘并经单测验证字节保真（CRLF 文件原样入 blob，工作区字节 ≡ blob 字节）；open 统一入口已配 `config_overrides(["core.autocrlf=false"])` 兜底。**Windows 侧遗留**（需宿主机，M1 未做）：NTFS ignorecase 自动探测、超 260 路径 checkout、模拟 Git for Windows system autocrlf=true 时压掉、大小写碰撞 checkout 行为、tree 级冲突检测在 fixtures 验证。
 
 ## 5. 安全 / 明文策略（app 层）
 
