@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前为骨架期：Cargo workspace（`mdor-core` + `mdor-app`）已建，core 业务模块按 plan.todo M1 推进；仓库另含 `doc/` 规划文档。
+mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M1 已落地**——Cargo workspace（`mdor-core` + `mdor-app`）、core 业务骨架（error/model/store 持久化 / source trait / migration / services 薄门面+命令 / versioning+gix 存储基座 / tracing 门面）、书架 UI 渲染 library.json 真实数据、ci.yml core-quality；下一里程碑 M2（StaticSiteSource 静态站镜像）按 plan.todo 推进；仓库另含 `doc/` 规划文档。
 
 > 本项目使用 Project Cairn 组织项目知识：Cairn 全套规则（初始化配置/阅读顺序/文档职责/冲突仲裁/知识库消费反射/知识沉淀规则）见 `cairn/AGENTS.md`。
 > 本机装有 project-cairn skill 且仓库存在 `cairn/` 时生效；否则视为不适用，跳过。
@@ -32,13 +32,13 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - MCP 对表格型（env.md 故障排查表/§8 记录）与长篇论证（decisions.md rationale）召回弱——须对 env.md / decisions.md / project.md 补手工核读；MCP 结果只作覆盖矩阵与排序，不替代全文召回
 - 坑与实证见 `cairn/mcp-doc-retrieval.md`
 
-## M0 桌面构建（唯一当前可用目标）
+## M1 后桌面构建
 
-- `cargo run -p mdor-app`（workspace bin）；桌面 UI：`dx serve --platform desktop`（需在 `crates/mdor-app/` 目录运行，Dioxus.toml 所在处；需 dioxus-cli 0.7.x + Win11 WebView2）
-- Windows 走 MSVC：`cargo build` 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
+- 工具链：进入仓库自动加载 flake devShell（direnv，`.envrc`）；`cargo run -p mdor-app`（workspace bin）可直接跑桌面并验证日志
+- 桌面 UI 弹窗验证：nixos-wsl 走 WSLg（flake 已含 webkit 等桌面库）；Windows 宿主机走 `dx serve --platform desktop`（在 `crates/mdor-app/` 目录运行，Dioxus.toml 所在处；需 dioxus-cli 0.7.x + Win11 WebView2）；Windows 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
 - Android 侧 M6 前不碰：本机未装 JDK / SDK / NDK；toolchain 已带 android targets（rust-std-{aarch64,x86_64}-linux-android，M6 打包时直接用）
 
-## 质量门禁（计划进 CI core-quality，本地保持一致）
+## 质量门禁（CI core-quality 已挂，本地保持一致）
 
 - `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo audit`
 - `cargo audit`（需 `cargo install cargo-audit --locked`）是硬性要求（D-12），退出码非 0 即失败

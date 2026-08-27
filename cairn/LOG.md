@@ -2,6 +2,20 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-27 · M1 全量落地（六切片）+ gix 存储基座实测
+
+- 切片1 书架持久化（error.rs thiserror + `write_json_atomic`/`read_json_capped` 1MB + LibraryStore 提交点）；切片2 阅读进度（ReadingPosition + ProgressStore RenameOnly）；切片3 gix 基座（BookRepo init/自建 commit/版本 tag/checkout 硬切换 + D-09 双施加点 + blob 跨版本去重 + CRLF 字节保真）；切片4 tracing（core 打点门面 + app fmt/RUST_LOG）；切片5 服务接线（SourceAdapter/Registry + PositionMigrator/PathMigrator + AppService 薄门面 + Command 串行队列 + BookStore 孤儿同步清理 + 书架渲染真实数据）；切片6 ci.yml core-quality。
+- 验证：`cargo test -p mdor-core` 34 绿、fmt/clippy/audit(exit 0) 全绿；WSLg 桌面日志证明书架渲染读取 library.json（609 字节 seed 无错误）。视觉截图受限：WSLg 合成器不支持 wlr-screencopy（grim）、nixpkgs imagemagick 无 X11 delegate。
+- gix 0.87 实测：checkout 无高层 API，须直依赖 gix-worktree-state；D-09 结论回写 decisions/diff/cairn（Linux 通过、Windows 五项遗留需宿主机）。
+- 决策：孤儿清理同步执行（防 add_book 建目录→登记 TOCTOU，升级门写入 store/mod.rs）；AppService 注入用 OnceLock（Dioxus GlobalSignal 因 UnsyncStorage 非 Sync 不适用）。
+- 待办：CI 实跑（推送 master）、M2 StaticSiteSource。门禁：check-links.py 通过。
+
+## 2026-08-27 · nixos-wsl 工具链单源化 + direnv 自动加载 devShell
+
+- 早前中断的 rustup 下载遗留残缺 1.97.1 工具链（Missing manifest）；系统 rustup 1.29.0 代理在 `/run/current-system/sw/bin`。定位为非 flake 问题（rust-bin 原子构建不可能残缺）→ 环境治理：`/etc/nixos/module/dev/rust.nix` 移除 rustup+cargo（保留 rust-analyzer）+ 仓库根 `.envrc`（`use flake`，nix-direnv）+ `direnv allow` → cd 进仓库自动加载 devShell。
+- 关键认知：opencode 的 bash 工具是非交互 shell，direnv 不生效；agent 要吃到 flake 工具链须在已加载 devShell 的交互终端里启动 opencode（继承式）。shell.args 方案不成立——当前 opencode schema `shell` 仅字符串；且 home-manager `.bashrc` 有 `[[ $- == *i* ]] || return`，`-l` 非交互登录被早退拦掉 direnv hook。
+- 残余：`~/.rustup` 已清理；Windows 宿主 scoop rustup-msvc 不受影响（M0 桌面）。
+
 ## 2026-08-27 · NixOS-WSL vscode-server 架构边界 + 自定义仓库扩展安装复核
 
 - 会话：梳理「在 NixOS 从指定仓库装 VS Code 扩展（aliveranme/Rebuild-gitlens，脱订阅校验的重打包 GitLens）」，核定 `services.vscode-server` 模块（nixos-vscode-server）**不管理扩展**、只 patch 客户端自动下载的 server 二进制；server 本体由宿主机客户端下载管理、与客户端绑定，无法 Nix 声明。

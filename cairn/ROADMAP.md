@@ -1,11 +1,11 @@
 # mdor 路线图
 
-**当前焦点**：M0 已验收（workspace 建立 + `dx serve --platform desktop` 弹窗通过）；下一里程碑 **M1**（workspace + mdor-core 骨架已建，剩 error/model、store、source trait、versioning/migration trait、gix 存储基座、AppService + 命令骨架、轻量 ci.yml）。里程碑详表见 `doc/project.md` §10。
+**当前焦点**：M1 已验收（workspace + mdor-core 骨架、gix 存储基座、AppService 薄门面 + 命令骨架、书架 UI 渲染真实数据，`cargo test -p mdor-core` 34 绿 + 门禁全绿）；下一里程碑 **M2**（StaticSiteSource 静态站递归镜像 + 自建链版本 tag + httpmock 集成测试，fixtures/mdbook-static/）。里程碑详表见 `doc/project.md` §10。
 
 ## 里程碑
 
 - [x] M0 桌面开发环境搭建（VS/MSVC v14.50、rust-toolchain 1.97.1、dioxus-cli）
-- [ ] M1 workspace + mdor-core 骨架 + gix 存储基座 + AppService + 书架骨架 + ci.yml
+- [x] M1 workspace + mdor-core 骨架 + gix 存储基座 + AppService + 书架骨架 + ci.yml
 - [ ] M2 StaticSiteSource 递归镜像下载（自建链 + 版本 tag）
 - [ ] M3 阅读器：内容抽取、资源协议、目录抽屉、滚动进度
 - [ ] M4 GitHubSource + SUMMARY 解析 + markdown 渲染

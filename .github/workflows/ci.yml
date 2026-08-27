@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # core-quality：PR/push 质量门禁（§12.3 core-quality，M1 起挂）
+  core-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 读取 rust-toolchain.toml 钉版 1.97.1；profile=minimal 不含 rustfmt/clippy，补 components
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --check
+      # mdor-app 需系统 webkit 库，ubuntu runner 无 → clippy 限定 core；
+      # app 编译检查由 M7 的 windows-desktop-check 覆盖（§12.3）
+      - name: clippy
+        run: cargo clippy -p mdor-core -- -D warnings
+      - name: test
+        run: cargo test -p mdor-core
+      - name: audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit

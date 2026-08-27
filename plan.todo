@@ -17,6 +17,7 @@ M0 桌面开发环境:
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
     推进方式：功能纵向切片——每片端到端打通，以可运行验证收尾（26-08-21 由模块罗列式重排）
+    ✔ M1 全量落地 @done(26-08-27 20:30)：切片1-6 全部完成；验收= cargo test -p mdor-core 34 绿 + 桌面书架真实数据渲染（日志证明）+ 门禁全绿；CI core-quality 待推送验证（master）
     已完成:
         ✔ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high @done(26-08-19 23:38)
         ✔ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high @done(26-08-19 23:38)
@@ -56,8 +57,9 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ✔ 切片验证：桌面弹窗渲染真实书架数据（WSLg 运行日志证明渲染时读取 library.json 609 字节无错误；视觉截图受 WSLg 合成器/工具限制未获，宿主肉眼可验）@critical
         ☐ tokio 进 workspace deps（D-12：core 异步运行时）+ async-trait——切片5 已随命令队列引入
     切片6 CI 收尾:
-        ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
-        ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
+        ✔ 轻量 ci.yml（core-quality：fmt/clippy/test/audit，rust-toolchain 钉版 + rust-cache + cancel-in-progress；clippy 限 core 因 ubuntu 无 webkit）@low @done(26-08-27 20:30)
+        ✔ 收尾：质量门禁全绿（fmt/clippy/test 34 绿/audit exit 0）+ cairn/LOG + ROADMAP 更新 @done(26-08-27 20:30)
+        ☐ CI 实跑验证：推送 master 后 core-quality 绿（本次未 push）
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）
