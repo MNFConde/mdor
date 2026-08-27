@@ -34,6 +34,58 @@ pub enum Error {
         /// 允许上限（字节）。
         max: u64,
     },
+    /// git 仓库初始化失败。
+    #[error("git 初始化失败（{path}）：{source}")]
+    GitInit {
+        /// 仓库路径。
+        path: PathBuf,
+        /// gix init 错误。
+        source: Box<gix::init::Error>,
+    },
+    /// git 仓库打开失败。
+    #[error("git 打开失败（{path}）：{source}")]
+    GitOpen {
+        /// 仓库路径。
+        path: PathBuf,
+        /// gix open 错误。
+        source: Box<gix::open::Error>,
+    },
+    /// git 引用操作失败。
+    #[error("git 引用操作失败：{0}")]
+    GitRef(#[from] Box<gix::reference::edit::Error>),
+    /// git 对象读取失败。
+    #[error("git 对象读取失败：{0}")]
+    GitFind(#[from] Box<gix::object::find::existing::Error>),
+    /// git 对象写入失败。
+    #[error("git 对象写入失败：{0}")]
+    GitWrite(#[from] Box<gix::object::write::Error>),
+    /// git 对象解析（peel）失败。
+    #[error("git 对象解析失败：{0}")]
+    GitPeel(#[from] Box<gix::object::peel::to_kind::Error>),
+    /// git 索引构建失败。
+    #[error("git 索引构建失败：{0}")]
+    GitIndex(#[from] Box<gix::index::init::from_tree::Error>),
+    /// git 索引写盘失败。
+    #[error("git 索引写盘失败：{0}")]
+    GitIndexWrite(#[from] Box<gix::index::file::write::Error>),
+    /// git 检出配置失败。
+    #[error("git 检出配置失败：{0}")]
+    GitCheckoutOptions(#[from] Box<gix::config::checkout_options::Error>),
+    /// git 检出失败。
+    #[error("git 检出失败：{0}")]
+    GitCheckout(#[from] Box<gix_worktree_state::checkout::Error>),
+    /// git 仓库保护配置读取失败。
+    #[error("git 保护配置读取失败：{0}")]
+    GitProtect(#[from] Box<gix::config::boolean::Error>),
+    /// git 配置加载失败。
+    #[error("git 配置加载失败：{0}")]
+    GitConfigLoad(#[from] Box<gix::config::file::init::Error>),
+    /// git 配置写入失败。
+    #[error("git 配置写入失败：{0}")]
+    GitConfigSet(#[from] Box<gix::config::file::set_raw_value::Error>),
+    /// 其他 git 操作失败（无专门变体时兜底）。
+    #[error("git 操作失败：{0}")]
+    Git(String),
 }
 
 impl Error {
@@ -54,4 +106,31 @@ impl Error {
             source,
         }
     }
+}
+
+/// 为装箱的 gix 错误变体生成 `From<T>`（大错误类型装箱避免 `Result` 过大，clippy::result_large_err）。
+macro_rules! impl_from_boxed {
+    ($($variant:ident => $ty:ty),* $(,)?) => {
+        $(
+            impl From<$ty> for Error {
+                fn from(source: $ty) -> Self {
+                    Self::$variant(Box::new(source))
+                }
+            }
+        )*
+    };
+}
+
+impl_from_boxed! {
+    GitRef => gix::reference::edit::Error,
+    GitFind => gix::object::find::existing::Error,
+    GitWrite => gix::object::write::Error,
+    GitPeel => gix::object::peel::to_kind::Error,
+    GitIndex => gix::index::init::from_tree::Error,
+    GitIndexWrite => gix::index::file::write::Error,
+    GitCheckoutOptions => gix::config::checkout_options::Error,
+    GitCheckout => gix_worktree_state::checkout::Error,
+    GitProtect => gix::config::boolean::Error,
+    GitConfigLoad => gix::config::file::init::Error,
+    GitConfigSet => gix::config::file::set_raw_value::Error,
 }
