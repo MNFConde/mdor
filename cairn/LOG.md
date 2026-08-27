@@ -2,6 +2,13 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-27 · NixOS-WSL vscode-server 架构边界 + 自定义仓库扩展安装复核
+
+- 会话：梳理「在 NixOS 从指定仓库装 VS Code 扩展（aliveranme/Rebuild-gitlens，脱订阅校验的重打包 GitLens）」，核定 `services.vscode-server` 模块（nixos-vscode-server）**不管理扩展**、只 patch 客户端自动下载的 server 二进制；server 本体由宿主机客户端下载管理、与客户端绑定，无法 Nix 声明。
+- 结论：Remote-WSL 拓扑下扩展只能走**客户端安装**（`code --install-extension` / GUI Install from VSIX）自动同步进 WSL server；`vscode-with-extensions` 属「NixOS 当客户端」拓扑，与 Windows 宿主对接不相容。
+- 沉淀：新建 [nixos-wsl-vscode-server.md](nixos-wsl-vscode-server.md)——架构（nix-ld vs services.vscode-server 两类声明式 enabler、扩展声明边界）+ Rebuild-gitlens vsix 安装 procedure（Releases API digest→sha256 技巧复用自 nix-env-tooling 坑 6）+ 教训（模块职责边界凭 option 核实、`vscode-with-extensions` 非 Remote 通用）。
+- 门禁：`check-links.py` 通过。
+
 ## 2026-08-26 · 遥测链路设计 + 模块边界内核 + mdor 日志基座沉淀
 
 - 会话产出（跨项目遥测设计讨论）：多语言（Python×2 / JS 浏览器 / Java）分布式高频遥测链路完整设计归档 [telemetry-schema-registry-design.md](telemetry-schema-registry-design.md)——形态 A（定义层 schema 注册表 + 运行时本地分发）、统一 WebSocket 信封（WS1/WS2 为连接腿标签、per-payload v/ts/seq、WS1 zstd / WS2 deflate、wss）、JSON Schema vs Protobuf+buf 双线工具链（含 Avro 备选）、落地路径；含教训「10ms 连续值=指标非日志」。
