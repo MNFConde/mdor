@@ -28,6 +28,7 @@ pub fn write_json_atomic<T: Serialize>(
 ) -> Result<()> {
     let tmp = tmp_path(path)?;
     let bytes = serde_json::to_vec_pretty(data).map_err(|e| Error::json(path, e))?;
+    tracing::debug!(path = %path.display(), ?durability, bytes = bytes.len(), "原子写元数据");
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;
@@ -50,6 +51,7 @@ pub fn read_json_capped<T: DeserializeOwned>(path: &Path, max: u64) -> Result<T>
     let file = fs::File::open(path).map_err(|e| Error::io(path, e))?;
     let declared = file.metadata().map_err(|e| Error::io(path, e))?.len();
     if declared > max {
+        tracing::warn!(path = %path.display(), declared, max, "元数据文件超限拦截");
         return Err(Error::Capped {
             path: path.to_path_buf(),
             size: declared,
@@ -57,11 +59,13 @@ pub fn read_json_capped<T: DeserializeOwned>(path: &Path, max: u64) -> Result<T>
         });
     }
 
+    let file = file;
     let mut buf = Vec::with_capacity(usize::try_from(declared.min(max)).unwrap_or(0));
     file.take(max + 1)
         .read_to_end(&mut buf)
         .map_err(|e| Error::io(path, e))?;
     if buf.len() as u64 > max {
+        tracing::warn!(path = %path.display(), size = buf.len(), max, "元数据文件超限拦截（实读）");
         return Err(Error::Capped {
             path: path.to_path_buf(),
             size: buf.len() as u64,
@@ -69,6 +73,7 @@ pub fn read_json_capped<T: DeserializeOwned>(path: &Path, max: u64) -> Result<T>
         });
     }
 
+    tracing::debug!(path = %path.display(), bytes = buf.len(), "读取元数据");
     serde_json::from_slice(&buf).map_err(|e| Error::json(path, e))
 }
 

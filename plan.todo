@@ -24,24 +24,25 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ✔ Dioxus.toml + 书架骨架（中文 UI，dioxus 0.7.x）@high @done(26-08-19 23:38)
         ✔ dx serve --platform desktop 弹窗（= M0 验收 + M1 书架骨架）@critical @done(26-08-19 23:38)
     切片1 书架持久化:
-        ☐ error.rs：统一错误类型（thiserror）@high
+        ✔ error.rs：统一错误类型（thiserror）@high @done(26-08-27 17:00)
         ✔ model::Book（serde；TocEntry 等其余模型随用随建，不一次建全）@high @done(26-08-21 22:12)【commit 58b4e2f 已落地 Book + derive_id + 单测】
-        ☐ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限，§6.7）
-        ☐ store/library.rs：library.json 载入/保存（原子写 = 提交点语义）
-        ☐ 切片验证：model 序列化往返 + 原子写单测，cargo test -p mdor-core 绿 @critical
+        ✔ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限，§6.7）@high @done(26-08-27 17:00)
+        ✔ store/library.rs：library.json 载入/保存（原子写 = 提交点语义）@high @done(26-08-27 17:00)
+        ✔ 切片验证：model 序列化往返 + 原子写单测，cargo test -p mdor-core 绿 @critical @done(26-08-27 17:00)
     切片2 阅读进度:
-        ☐ model::ReadingPosition + progress.json 存取（原子写仅 rename 层）
-        ☐ 切片验证：进度读写往返单测
+        ✔ model::ReadingPosition + progress.json 存取（原子写仅 rename 层）@high @done(26-08-27 17:20)
+        ✔ 切片验证：进度读写往返单测 @done(26-08-27 17:20)
     切片3 gix 快照基座:
-        ☐ store/snapshot.rs：init/自建 commit/版本 tag/checkout（gix，§9 存储布局）
-        ☐ versioning.rs：版本 tag 生成与 HEAD/ref 维护（§7）
-        ☐ 切片验证：gix 冒烟单测（建仓/tag/内容去重）@high
+        ✔ store/snapshot.rs：init/自建 commit/版本 tag/checkout（gix，§9 存储布局）+ D-09 配置双施加点（repo-local autocrlf=false+longpaths；open config_overrides 兜底）@high @done(26-08-27 18:00)
+        ✔ versioning.rs：版本 tag 生成与 HEAD/ref 维护（§7）@high @done(26-08-27 18:00)
+        ✔ 切片验证：gix 冒烟单测（建仓/tag/内容去重/硬切换/CRLF 字节保真）@high @done(26-08-27 18:00)
+        ✔ D-09 回写：Linux 侧实测通过（decisions/diff/cairn 已更新），Windows 侧五项遗留 @done(26-08-27 18:30)
     切片4 日志基座（tracing）:
-        ☐ [workspace.dependencies] 增 tracing + tracing-subscriber（钉版，随用随建）@high
-        ☐ mdor-core 挂 tracing 门面：业务只打点、不碰配置 @high
-        ☐ mdor-app 桌面接入 tracing-subscriber fmt 层（stdout + RUST_LOG 控级别）；AppService 门面调用打 info（含耗时），错误路径 warn/error + 结构化字段（book_id/version）@high
+        ✔ [workspace.dependencies] 增 tracing + tracing-subscriber（钉版，随用随建）@high @done(26-08-27 19:00)
+        ✔ mdor-core 挂 tracing 门面：业务只打点、不碰配置 @high @done(26-08-27 19:00)
+        ✔ mdor-app 桌面接入 tracing-subscriber fmt 层（stdout + RUST_LOG 控级别）；AppService 门面调用打 info（含耗时），错误路径 warn/error + 结构化字段（book_id/version）@high
             注（26-08-27 微调）：AppService 埋点并入切片5（AppService 在切片5 才落地），切片4 只交付 deps + 门面 + subscriber
-        ☐ 切片验证：RUST_LOG=mdor_core=debug 桌面跑动对应级别日志可见 @critical
+        ✔ 切片验证：桌面跑动日志可见（WSLg：RUST_LOG=mdor_app=info 见「mdor 启动」，RUST_LOG=error 正确过滤）；mdor_core=debug 端到端随切片5 书架加载 @critical
         ☐ 明确不做：远端汇聚/指标/分布式追踪/上报（无此需求；tracing 数据模型对齐 OTel，留将来上报的门）
         ☐ M6 注记（不在本期）：tracing-appender 滚写到 app 数据目录 + adb logcat，发布构建 feature gate 裁剪
     切片5 服务接线:

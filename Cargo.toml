@@ -22,4 +22,6 @@ sha2 = "0.10.9"
 gix = "0.87"
 gix-worktree = "0.56"
 gix-worktree-state = "0.34"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 

@@ -32,6 +32,7 @@ impl BookRepo {
         })?;
         let book = Self { repo };
         book.apply_safety_config()?;
+        tracing::debug!(path = %path.display(), "初始化书籍仓库");
         Ok(book)
     }
 
@@ -45,6 +46,7 @@ impl BookRepo {
         })?;
         let book = Self { repo };
         book.apply_safety_config()?;
+        tracing::debug!(path = %path.display(), "打开书籍仓库");
         Ok(book)
     }
 
@@ -88,6 +90,7 @@ impl BookRepo {
             email: "mdor@localhost".into(),
             time,
         };
+        let parent_count = parents.len();
         let commit = Commit {
             tree,
             parents: parents.into(),
@@ -100,6 +103,7 @@ impl BookRepo {
         let id = self.repo.write_object(&commit)?.detach();
         // 物化工作区：workdir 恒等于当前版本内容（§9，本地 http 服务直读）。
         self.checkout(id)?;
+        tracing::debug!(files = files.len(), message, parents = parent_count, %id, "自建快照 commit");
         Ok(id)
     }
 
@@ -112,6 +116,7 @@ impl BookRepo {
     pub fn create_version_tag(&self, seq: u32, commit: ObjectId) -> Result<String> {
         let name = versioning::version_tag_ref(seq);
         self.edit_ref(&name, Target::Object(commit), PreviousValue::MustNotExist)?;
+        tracing::debug!(tag = %name, %commit, "创建版本 tag");
         Ok(name)
     }
 

@@ -7,5 +7,8 @@ __pycache__/
 /dev/*
 !/dev/dev-env.ps1
 
+# nix-direnv 缓存（可再生成，勿提交）
+/.direnv
+
 # 本机 Android 覆盖（版本化 NDK + linker）；模板见 .cargo/config.local.toml.example
 /.cargo/config.local.toml

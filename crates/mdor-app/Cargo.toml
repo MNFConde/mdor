@@ -10,3 +10,5 @@ workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["desktop"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

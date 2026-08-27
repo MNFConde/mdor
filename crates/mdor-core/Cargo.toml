@@ -16,3 +16,4 @@ sha2 = { workspace = true }
 gix = { workspace = true }
 gix-worktree = { workspace = true }
 gix-worktree-state = { workspace = true }
+tracing = { workspace = true }
