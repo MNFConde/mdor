@@ -32,6 +32,7 @@ graduation_status: candidate
 2. **dioxus 桌面 Linux 链接缺 `-lxdo`**：wry/tray 栈的 libxdo crate 动态链 `libxdo`，rpath/链接缺该库报 `rust-lld: error: unable to find library -lxdo`。补 `pkgs.xdotool`（4.x 提供 `libxdo.so` + `libxdo.pc`）；注意旧版 nixpkgs 的 xdotool（3.x）可能不带 dev 文件，确认 store 内 4.x。
 3. **shellHook 幂等判断不能 `command -v dx`**：非交互 `nix develop --command ...` 下 PATH 不含 `~/.cargo/bin`（非交互 bash 不读 .bashrc），`command -v dx` 恒失败导致每次进 shell 重跑 cargo install（虽被 cargo 自身幂等跳过，仍多耗几秒）。改用 `[ ! -x "$HOME/.cargo/bin/dx" ] || ! "$HOME/.cargo/bin/dx" --version 2>/dev/null | grep -q "0.7.10"` 判断 + `export PATH="$HOME/.cargo/bin:$PATH"`。
 4. **首次 `nix develop` 触发 dx 全量编译**（约 3 分钟，数百 crate）：正常现象，二次进入幂等跳过；`dx --version` 输出 `dioxus 0.7.10 (...)`，grep `0.7.10` 可匹配。
+5. **agent（opencode）吃 devShell 靠继承式而非壳模拟**（2026-08-27）：bash 工具是非交互 shell，不 source .bashrc、direnv hook 不触发；shell.args 方案也不成立——当前 opencode schema `shell` 仅字符串，且 home-manager `.bashrc` 有 `[[ $- == *i* ]] || return` 早退非交互登录。要让 agent 拿到 flake 工具链，须在已加载 devShell 的交互终端里启动 opencode（进程环境继承），或仓库 `.envrc`（`use flake`，nix-direnv）+ 用户从该终端启动。
 
 ## 实践指南
 

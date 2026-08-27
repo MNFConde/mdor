@@ -31,6 +31,7 @@ authoring_mode: ai_generated
   - `progress.json`（高频低价值）→ **RenameOnly**
   - `.mdor/versions/<sha>.json`（低频、可重写）→ RenameOnly
 - **提交点设计**：`add_book`/更新多步中断 → `library.json` **最后写** = 提交点：中断后书架无此书/仍为旧版本；孤儿 `books/<id>/` 目录启动时清理。
+- **孤儿目录清理（M1 定稿，2026-08-27）**：`books/<id>/` 存在但 library.json 无记录 = 孤儿（提交点中断残留），BookStore 启动**同步**扫描删除。不开后台线程——add_book 时序「先建目录 → 后写 library.json」，后台删除与建目录之间存在 TOCTOU，删前复查只能缩小窗口关不死；同步成本微秒~毫秒级（几十本书量级）。升级门：将来启动被大孤儿目录拖慢时改「同步扫描收集 + 后台删除 + 删前复查」。
 - **读入 guard**：读取统一走 `read_json_capped(path, MAX_META_BYTES)`（默认 1MB），读文件前按字节数上限拦截，关死「超大文档耗尽 CPU/内存」DoS。
 
 ## 实践指南
