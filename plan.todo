@@ -63,7 +63,15 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         因 nixos-wsl 环境限制未完成、需换环境/宿主执行的验收项（26-08-27 记录）：
         ☐ 书架弹窗视觉确认 @critical
             原因：WSLg 截图工具链受限（合成器不支持 wlr-screencopy / imagemagick 无 X11 delegate / xwd·scrot 缺失）；日志已证渲染管线（渲染时读取 library.json 609 字节）但无视觉证据
-            执行（ubuntu-dev VM 或 Windows 宿主）：cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书），肉眼确认书架列出书名
+            路径：ubuntu-dev VM（D-16 第一触发场景：dioxus Linux 桌面 GUI 调试）；Windows 宿主为备选
+            前提：VM「备用化最小配置」未补（openssh-server/git/Nix multi-user 均未装，env.md §1 拓扑）；VM Host-Only IP 未记录
+            执行（ubuntu-dev VM）：
+                阶段0（用户侧）：VBoxManage startvm ubuntu-dev（或 GUI）启动；提供 Host-Only IP 确认 SSH 可达
+                阶段1 最小配置：SSH 进 VM → 装 git/openssh-server → 装 Nix multi-user（determinate-nix，需 sudo+出网）
+                    风险：VM 走 NAT 出网，宿主代理 7897 不自动生效 → VM 内配同款代理（网关 10.0.2.2）否则 nix 拉闭包慢/失败
+                阶段2 项目就位：wsl 侧 rsync 仓库到 VM（免 GitHub 认证）→ nix develop（首建 devShell+dx，分钟级）
+                阶段3 运行验证：VM 桌面登录后 SSH 带 DISPLAY=:0 跑 cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书）→ 弹窗 → gnome-screenshot 截图经 scp 拉回看图确认（read 支持 PNG）→ 用户 VirtualBox 窗口肉眼复核
+                阶段4 收尾：env.md 拓扑补 VM IP 事实；按文档跑「装完快照」；cairn LOG
         ☐ D-09 gix Windows 侧五项实测 @high
             原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
             项：NTFS ignorecase 自动探测 / >260 路径 checkout / 模拟 system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测 fixtures 验证
