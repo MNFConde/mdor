@@ -1,7 +1,7 @@
 ---
 type: project_topic
 status: active
-summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案与待 M1 实测项"
+summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案与待 M1 实测项；gix 0.87 API 实测要点（平台无关，M2/M4 复用）"
 tags: [mdor, gix, git, windows, autocrlf, versioning]
 contains: [lesson, decision, procedure, open_question]
 created: "2026-08-16"
@@ -43,6 +43,14 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 
 - **M1 Linux 侧已实测**（2026-08-27，切片3）：repo-local `core.autocrlf=false` + `core.longpaths=true` 已落盘、open 入口 `config_overrides` 兜底、CRLF 字节保真单测通过（autocrlf=false 下磁盘字节 ≡ blob 字节）。
 - **Windows 侧遗留实测项**（需宿主机，D-09）：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
+
+## gix API 实测（0.87，平台无关，M2/M4 复用）
+
+- **checkout 无高层 Repository API**：`gix::Repository` 不暴露 checkout，须直依赖 `gix-worktree-state`（传递依赖，加为直接依赖即可）。配方：`index::State::from_tree(tree, &repo.objects, validate)` → `index::File::from_state` → `repo.checkout_options(attributes::Source::IdMapping)`（设 `overwrite_existing`）→ `gix_worktree_state::checkout(...)` → `index.write`。progress 参数传 `&progress::Discard` 即可（`count()`/`bytes()` 返回 `Option<Unit>`，非 `Count` impl）。
+- **`repo.config.protect_options()` 是 pub(crate) 外部不可用**：`index::State::from_tree` 的 validate 参数用 `gix::validate::path::component::Options::default()`（默认全开最安全，防 untrusted 书内容路径穿越）。
+- **`config_snapshot_mut()` 只改进程内配置、不落盘**（doc 明示 in-memory only）：repo-local 配置（D-09 的 autocrlf/longpaths）持久化须走 `gix::config::File::from_path_no_includes(<git_dir>/config, Source::Local)` + `set_raw_value_by` + `write_to`。
+- **`gix::init(path)` 在 0.87 直接返回 `Repository`**（非 ThreadSafeRepository）；写对象用 `repo.write_blob`/`write_object`（返回 `Id`，`.detach()` 取 `ObjectId`）；引用操作走 `repo.edit_reference(RefEdit)`（`refs/mdor/versions/...` 自定义 ref 用此；`tag_reference` 只写 `refs/tags/` 不适合私有版本命名空间）。
+- **commit 对象类型**：`gix::objs::Commit`（`parents` 是 smallvec，`vec![id].into()` 即可）；签名 `gix::actor::Signature` + `gix::date::Time::now_local_or_utc()`；树条目须按 git 树序排序（目录名按「名 + /」参与字节比较）。
 
 ## 实践指南
 

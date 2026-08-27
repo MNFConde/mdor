@@ -404,6 +404,8 @@ dx doctor         # 工具链体检（框架/环境升级后）
 | `dx build --android` 链接报乱码/参数过长 | 旧版 dx 的 Windows 链接器代理 bug | 升级 dioxus-cli ≥ 0.7.1（PR #4126 已修） |
 | `dx doctor` 提示缺 android target / SDK / NDK / JDK | **M0 阶段属正常**（Android 侧 M6 才启用） | M0 不必处理；M6 时按 §7 过渡清单补装并改回 `rust-toolchain.toml` |
 | Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics` | 真机 API < 30 | 在 `Dioxus.toml` 设 `min_sdk_version = 30` |
+| WSLg 桌面跑 dioxus 报 `libEGL`/`MESA-ZINK failed to choose pdev` 警告 | WSLg 无 GPU 直通，走软件渲染回退（zink） | 属噪声非错误，窗口正常渲染；渲染验证用日志（`RUST_LOG=mdor_core=debug` 见 store 读取）或宿主肉眼 |
+| WSLg 截图失败（grim 报合成器不支持 wlr-screencopy / imagemagick `x:` 无 X11 delegate / 缺 xwd·scrot） | WSLg 合成器未实现屏幕捕获协议、nixpkgs imagemagick 未编 X11 delegate | 视觉验证改 ubuntu-dev VM / Windows 宿主；或接受日志证据（渲染时读取 library.json） |
 
 ---
 

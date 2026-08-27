@@ -33,6 +33,7 @@ graduation_status: candidate
 3. **shellHook 幂等判断不能 `command -v dx`**：非交互 `nix develop --command ...` 下 PATH 不含 `~/.cargo/bin`（非交互 bash 不读 .bashrc），`command -v dx` 恒失败导致每次进 shell 重跑 cargo install（虽被 cargo 自身幂等跳过，仍多耗几秒）。改用 `[ ! -x "$HOME/.cargo/bin/dx" ] || ! "$HOME/.cargo/bin/dx" --version 2>/dev/null | grep -q "0.7.10"` 判断 + `export PATH="$HOME/.cargo/bin:$PATH"`。
 4. **首次 `nix develop` 触发 dx 全量编译**（约 3 分钟，数百 crate）：正常现象，二次进入幂等跳过；`dx --version` 输出 `dioxus 0.7.10 (...)`，grep `0.7.10` 可匹配。
 5. **agent（opencode）吃 devShell 靠继承式而非壳模拟**（2026-08-27）：bash 工具是非交互 shell，不 source .bashrc、direnv hook 不触发；shell.args 方案也不成立——当前 opencode schema `shell` 仅字符串，且 home-manager `.bashrc` 有 `[[ $- == *i* ]] || return` 早退非交互登录。要让 agent 拿到 flake 工具链，须在已加载 devShell 的交互终端里启动 opencode（进程环境继承），或仓库 `.envrc`（`use flake`，nix-direnv）+ 用户从该终端启动。
+6. **nix-direnv 缓存 `.direnv/` 会被 `git add -A` 卷入提交**（2026-08-27）：`.envrc` 接入后仓库根生成 `.direnv/`（flake 输入软链 + 缓存），`git add -A` 会连缓存一并 stage（本会话误提交后 `git reset --soft` 修正）。`.gitignore` 须含 `/.direnv`。
 
 ## 实践指南
 

@@ -17,7 +17,7 @@ M0 桌面开发环境:
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
     推进方式：功能纵向切片——每片端到端打通，以可运行验证收尾（26-08-21 由模块罗列式重排）
-    ✔ M1 全量落地 @done(26-08-27 20:30)：切片1-6 全部完成；验收= cargo test -p mdor-core 34 绿 + 桌面书架真实数据渲染（日志证明）+ 门禁全绿；CI core-quality 待推送验证（master）
+    ✔ M1 全量落地 @done(26-08-27 20:30)：切片1-6 全部完成；验收= cargo test -p mdor-core 34 绿 + 桌面书架真实数据渲染（日志证明）+ 门禁全绿；环境受限遗留见下方「M1 遗留」块
     已完成:
         ✔ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high @done(26-08-19 23:38)
         ✔ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high @done(26-08-19 23:38)
@@ -59,7 +59,18 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
     切片6 CI 收尾:
         ✔ 轻量 ci.yml（core-quality：fmt/clippy/test/audit，rust-toolchain 钉版 + rust-cache + cancel-in-progress；clippy 限 core 因 ubuntu 无 webkit）@low @done(26-08-27 20:30)
         ✔ 收尾：质量门禁全绿（fmt/clippy/test 34 绿/audit exit 0）+ cairn/LOG + ROADMAP 更新 @done(26-08-27 20:30)
-        ☐ CI 实跑验证：推送 master 后 core-quality 绿（本次未 push）
+    M1 遗留（环境受限，留待环境合适时执行）:
+        因 nixos-wsl 环境限制未完成、需换环境/宿主执行的验收项（26-08-27 记录）：
+        ☐ 书架弹窗视觉确认 @critical
+            原因：WSLg 截图工具链受限（合成器不支持 wlr-screencopy / imagemagick 无 X11 delegate / xwd·scrot 缺失）；日志已证渲染管线（渲染时读取 library.json 609 字节）但无视觉证据
+            执行（ubuntu-dev VM 或 Windows 宿主）：cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书），肉眼确认书架列出书名
+        ☐ D-09 gix Windows 侧五项实测 @high
+            原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
+            项：NTFS ignorecase 自动探测 / >260 路径 checkout / 模拟 system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测 fixtures 验证
+            执行（Windows 宿主，M0 环境仍在）：见 doc/decisions.md D-09 待实测项
+        ☐ CI core-quality 实跑验证 @high
+            原因：feature/m1-core ahead 10 未 push + 工作流仅监听 master push/PR（feature 分支不触发）
+            执行：合并 feature/m1-core → master → push（D-14 直推保线性），观察 Actions core-quality 绿
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）
