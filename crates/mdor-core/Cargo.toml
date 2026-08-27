@@ -17,3 +17,8 @@ gix = { workspace = true }
 gix-worktree = { workspace = true }
 gix-worktree-state = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -145,7 +145,7 @@ save_progress`" .-> Mdor.PositionService
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub enum SourceKind {
     StaticSite, // 托管静态站点：镜像 HTML
-    GitHub,     // GitHub 仓库：拉取 markdown 源
+    GitForge,   // github/gitee/gitlab 等托管平台：拉取 markdown 源
 }
 
 #[async_trait]

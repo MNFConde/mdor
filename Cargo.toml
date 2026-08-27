@@ -24,4 +24,6 @@ gix-worktree = "0.56"
 gix-worktree-state = "0.34"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+async-trait = "0.1"
 

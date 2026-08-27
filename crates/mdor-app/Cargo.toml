@@ -12,3 +12,5 @@ workspace = true
 dioxus = { workspace = true, features = ["desktop"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tokio = { workspace = true }
+mdor-core = { path = "../../crates/mdor-core" }

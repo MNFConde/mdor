@@ -19,3 +19,23 @@ pub struct ReadingPosition {
     /// 保存时间（unix 秒）。
     pub saved_at: i64,
 }
+
+/// 位置迁移结果（§5 / §8.1）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MigratedPosition {
+    /// 迁移到的版本（commit sha）。
+    pub target_version: String,
+    /// 迁移后的章节路径。
+    pub target_chapter: String,
+    /// 迁移后的标题锚点。
+    pub target_anchor: Option<String>,
+    /// 采用的迁移策略。
+    pub strategy: MigrateStrategy,
+}
+
+/// 迁移策略（v1 仅 path；方案 D / anchor / fingerprint 后续追加，§8.3）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MigrateStrategy {
+    /// 按章节路径映射（v1 默认）。
+    Path,
+}

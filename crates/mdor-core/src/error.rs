@@ -86,6 +86,15 @@ pub enum Error {
     /// 其他 git 操作失败（无专门变体时兜底）。
     #[error("git 操作失败：{0}")]
     Git(String),
+    /// 实体不存在（如书架中查不到 book_id）。
+    #[error("未找到：{0}")]
+    NotFound(String),
+    /// URL 未被任何已注册来源适配器认识（§4 detect 全部落空）。
+    #[error("没有适配器认识该来源：{0}")]
+    NoSource(String),
+    /// 功能占位（对应里程碑尚未实现，标注所属阶段）。
+    #[error("功能未实现：{0}")]
+    Unsupported(&'static str),
 }
 
 impl Error {

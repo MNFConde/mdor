@@ -46,14 +46,15 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ☐ 明确不做：远端汇聚/指标/分布式追踪/上报（无此需求；tracing 数据模型对齐 OTel，留将来上报的门）
         ☐ M6 注记（不在本期）：tracing-appender 滚写到 app 数据目录 + adb logcat，发布构建 feature gate 裁剪
     切片5 服务接线:
-        ☐ source/mod.rs + registry.rs：SourceKind + SourceAdapter trait + SourceRegistry（detect 遍历，实现留 M2，§4）
-            注（26-08-27）：SourceKind 已在 commit 58b4e2f 落地（GitForge/StaticSite），切片5 补 trait/registry
-        ☐ migration/mod.rs + path.rs：PositionMigrator trait + PathMigrator 占位（MigratedPosition 随此引入，§8）
-        ☐ services/app_service.rs：AppService 门面（add_book/open_reading 合并调用，§6.9 薄门面）
-        ☐ services/commands/：Command trait + 命令队列 + UpdateBookCommand 占位
-        ☐ 孤儿 books/<id>/ 清理（§11 遗留，26-08-27 定稿）：判定以 library.json 为准，BookStore 启动同步扫描+删除（无后台线程，防 add_book 建目录→登记窗口 TOCTOU）；升级门=将来启动耗时被大孤儿拖慢时再同步扫描+后台删除+删前复查
-        ☐ mdor-app 书架经 AppService 渲染 library.json 数据
-        ☐ 切片验证：dx serve 弹窗显示真实书架数据 @critical
+        ✔ source/mod.rs + registry.rs：SourceKind + SourceAdapter trait + SourceRegistry（detect 遍历，实现留 M2，§4）@high
+            注（26-08-27）：SourceKind 已在 commit 58b4e2f 落地（GitForge/StaticSite），切片5 补 trait/registry；project.md §4 命名已对齐
+        ✔ migration/mod.rs + path.rs：PositionMigrator trait + PathMigrator（按章节路径直连/相邻回退 + 单测，MigratedPosition 随此引入，§8）@high
+        ✔ services/app_service.rs：AppService 门面（library 真实读 library.json；add_book/open_reading 占位/定位）+ 埋点（info 含耗时、错误 warn 结构化字段）@high
+        ✔ services/commands/：Command trait + 命令队列（tokio mpsc 串行）+ UpdateBookCommand 占位 + Progress 阶段 @high
+        ✔ 孤儿 books/<id>/ 清理（§11 遗留，26-08-27 定稿）：判定以 library.json 为准，BookStore 启动同步扫描+删除（无后台线程，防 add_book 建目录→登记窗口 TOCTOU）；升级门=将来启动耗时被大孤儿拖慢时再同步扫描+后台删除+删前复查
+        ✔ mdor-app 书架经 AppService 渲染 library.json 数据（main 数据根解析 + OnceLock 注入 + Library 屏）@high
+        ✔ 切片验证：桌面弹窗渲染真实书架数据（WSLg 运行日志证明渲染时读取 library.json 609 字节无错误；视觉截图受 WSLg 合成器/工具限制未获，宿主肉眼可验）@critical
+        ☐ tokio 进 workspace deps（D-12：core 异步运行时）+ async-trait——切片5 已随命令队列引入
     切片6 CI 收尾:
         ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
         ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
