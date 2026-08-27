@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// 书架上的书籍元数据（library.json 中每条）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Book {
     /// book_id：由来源 URL 派生（`derive_id`），全链路主键（目录名 / 去重 / 进度索引）
     pub id: String,
@@ -35,8 +35,21 @@ impl Book {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// 构造测试用 Book（共享给各模块 roundtrip 测试）。
+    pub(crate) fn sample_book(url: &str) -> Book {
+        Book {
+            id: Book::derive_id(url),
+            source_kind: SourceKind::GitForge,
+            url: url.to_string(),
+            title: "示例书籍".to_string(),
+            current_version: String::new(),
+            added_at: 1_752_000_000,
+            updated_at: 1_752_000_000,
+        }
+    }
 
     #[test]
     fn same_url_same_id() {
