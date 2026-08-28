@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "PowerShell 5.1 编码坑三向记录：读侧——Get-Content 默认按 ANSI/GBK 误读无 BOM UTF-8；写侧——>/Out-File 默认输出 UTF-16 LE、Set-Content -Encoding UTF8 带 BOM；管道侧——捕获原生命令 UTF-8 stdout 按 GBK 解码致内容导出即损坏（不可逆）；安全路径 = .NET API 显式 UTF8Encoding($false) + cmd /c 直通原始字节；损坏可经 git 历史字节级恢复"
+summary: "PowerShell 5.1 编码坑三向记录：读侧——Get-Content 默认按 ANSI/GBK 误读无 BOM UTF-8；写侧——>/Out-File 默认输出 UTF-16 LE、Set-Content -Encoding UTF8 带 BOM；管道侧——捕获原生命令 UTF-8 stdout 按 GBK 解码致内容导出即损坏（不可逆）；stdin 侧——管道写原生命词 stdin 用 $OutputEncoding(默认 ASCII) 中文 → ? 字节级损坏；安全路径 = .NET API 显式 UTF8Encoding($false) + cmd /c 直通原始字节 + -F <UTF-8文件>；损坏可经 git 历史字节级恢复"
 tags: [cairn, powershell, encoding, utf8, windows, tooling]
 contains: [lesson, procedure, experience]
 created: "2026-08-21"
-updated: "2026-08-23"
+updated: "2026-08-29"
 related: [windows-scripts.md]
 authoring_mode: ai_generated
 ---
@@ -24,6 +24,7 @@ authoring_mode: ai_generated
 5. **gitignore 不等于没有备份**：cairn/ 在 master 被忽略，但实验分支 `experiment/cairn-track` 跟踪了它——分支历史就是恢复源。
 6. **PS 5.1 `>` 重定向 / `Out-File` 默认输出 UTF-16 LE（带 `FF FE` BOM）**（2026-08-23）：导出的 opencode 会话备份 json 被 UTF-16 LE 写出，opencode 导入器按 UTF-8 解析即报「Unrecognized token '�'」——首个字节就是 BOM。读侧教训 1 的镜像坑：PS 5.1 各 cmdlet 默认编码不一致，任何「导出/落盘再被别的程序消费」的文件都不能依赖默认编码。
 7. **PS 管道捕获原生命令的 UTF-8 stdout 按 GBK 解码，内容导出即损坏（不可逆）**（2026-08-23）：`opencode export <id> > file` 在 PS 5.1 下执行——opencode 输出 UTF-8 字节流，PS 按 [Console] 输出编码（GBK）解码成字符串再以 UTF-16 落盘，中文正文被固化为 GBK 假汉字 + PUA 私用区字符（U+E003 等，实测 652 个）+ `?` 替换。这是教训 2 的实例：事后把容器转回 UTF-8 也只是「正确编码的错误内容」，导入器 JSON 校验都过不了。**容器编码可修，管道损坏不可逆**——必须在捕获环节就绕开 PS 解码层。
+8. **PS 5.1 管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），中文 → 字面 `?` 字节级损坏**（2026-08-29）：`@'…中文…'@ | git commit -F -` 写提交信息，每个中文字符都成了 0x3F（`cmd /c` 直读原始字节仍是 `?` = 真损坏非显示伪影）。与坑 7 同族但**方向相反**：stdout 捕获是「解码层误读」，stdin 写是「编码层丢弃」（ASCII 表达不了 CJK 直接替换成 `?`）。对策：中文内容别走 PS 管道喂原生命词——用 UTF-8 无 BOM 文件 `-F <file>`（如本会话 `git commit --amend -F <utf8文件>` 修复）；或先 `$OutputEncoding = [System.Text.Encoding]::UTF8` 再管道。提交后校验：`cmd /c "git log -1 --format=%B"` 不得含 `?`（显示层乱码≠损坏，见教训 4）。
 
 ## 当前结论
 

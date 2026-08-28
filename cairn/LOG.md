@@ -2,6 +2,13 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-29 · PS 5.1 stdin 管道中文损坏坑补充 + commit 消息修复
+
+- 提交 docs 批次时，`@'…'@ | git commit -F -` 在 PS 5.1 下把提交信息中文字符全写成字面 `?`（0x3F）——根因是管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），与已知 stdout GBK 解码坑（powershell-encoding 坑7）同族反向；`cmd /c` 直读原始字节仍 `?` 证实字节级损坏、非显示伪影。
+- 修复：`git commit --amend -F <UTF-8 无 BOM 文件>`（未推送，安全 amend），commit afcec32 中文完好。
+- 沉淀：[powershell-encoding.md](powershell-encoding.md) 补坑8 + summary/updated 同步；对策 = 中文喂原生命词用 `-F <UTF-8文件>` 或先 `$OutputEncoding=UTF8`。
+- 门禁：check-links.py 通过。
+
 ## 2026-08-28 · ubuntu-dev VM 环境准备（M0 桌面）+ Nix 国内镜像/代理链路沉淀
 
 - 会话：从裸 Ubuntu 24.04.4 搭起备用环境（D-16 三端）到 M0 桌面可用——阶段0 最小配置（Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照）→ 阶段1 `nix develop` + direnv+nix-direnv（`direnvrc` source + `direnv allow`，`/.direnv` 已 gitignore）→ 阶段2 skills-manager GUI+CLI + Starship → 阶段3 opencode（`nixpkgs#opencode` + 继承式启动）→ 阶段4 验收 + 快照。
