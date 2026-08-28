@@ -2,6 +2,15 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-28 · ubuntu-dev VM 环境准备（M0 桌面）+ Nix 国内镜像/代理链路沉淀
+
+- 会话：从裸 Ubuntu 24.04.4 搭起备用环境（D-16 三端）到 M0 桌面可用——阶段0 最小配置（Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照）→ 阶段1 `nix develop` + direnv+nix-direnv（`direnvrc` source + `direnv allow`，`/.direnv` 已 gitignore）→ 阶段2 skills-manager GUI+CLI + Starship → 阶段3 opencode（`nixpkgs#opencode` + 继承式启动）→ 阶段4 验收 + 快照。
+- 慢速根因链：国际直连 `static.rust-lang.org` 仅 ~50–80KB/s 为真实瓶颈（关宿主机 TUN 后真直连更慢=证实）→ 对策 = 绕开而非调代理：国内镜像矩阵实测（nix 缓存 USTC/TUNA/SJTU；rust-static **USTC VM 直连 403→弃 / rsproxy 可用 / SJTU 200 / TUNA·BFSU 404**；crates rsproxy sparse）+ 工具链 fixed-output 预置 `nix-store --add-fixed`。
+- 代理架构：nix **client 吃 shell 代理、nix-daemon 不吃**（须 `systemctl edit nix-daemon` 注入 8 行环境，大小写都配）；`sudo -E` 对 nix 无效；clash `external-controller`(9090, clashctl ui 打印) ≠ `mixed-port`(7890)；`clashctl off` 不清当前 shell 导出变量（假直连）；宿主机 TUN + VM clash = 双代理链。
+- 沉淀：新建 [ubuntu-vm-setup.md](ubuntu-vm-setup.md)（操作手册, procedure）与 [nix-mirror-proxy.md](nix-mirror-proxy.md)（通用镜像/代理专题, lesson/experience/decision）；[env.md §1](../doc/env.md#开发环境拓扑) ubuntu-dev 行补操作手册指针。
+- 执行状态（本机）：阶段0/1 已闭环（nix flake check ✅ / cargo test 34 绿 / dx 0.7.10），阶段2-4 待做；进度权威记录 = `plan.todo`「ubuntu-dev VM 环境」块。
+- 门禁：check-links.py 通过。
+
 ## 2026-08-27 · M1 全量落地（六切片）+ gix 存储基座实测
 
 - 切片1 书架持久化（error.rs thiserror + `write_json_atomic`/`read_json_capped` 1MB + LibraryStore 提交点）；切片2 阅读进度（ReadingPosition + ProgressStore RenameOnly）；切片3 gix 基座（BookRepo init/自建 commit/版本 tag/checkout 硬切换 + D-09 双施加点 + blob 跨版本去重 + CRLF 字节保真）；切片4 tracing（core 打点门面 + app fmt/RUST_LOG）；切片5 服务接线（SourceAdapter/Registry + PositionMigrator/PathMigrator + AppService 薄门面 + Command 串行队列 + BookStore 孤儿同步清理 + 书架渲染真实数据）；切片6 ci.yml core-quality。

@@ -64,14 +64,13 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ☐ 书架弹窗视觉确认 @critical
             原因：WSLg 截图工具链受限（合成器不支持 wlr-screencopy / imagemagick 无 X11 delegate / xwd·scrot 缺失）；日志已证渲染管线（渲染时读取 library.json 609 字节）但无视觉证据
             路径：ubuntu-dev VM（D-16 第一触发场景：dioxus Linux 桌面 GUI 调试）；Windows 宿主为备选
-            前提：VM「备用化最小配置」未补（openssh-server/git/Nix multi-user 均未装，env.md §1 拓扑）；VM Host-Only IP 未记录
+            前提：✔ VM 环境已就绪（26-08-28：阶段0 最小配置 + 阶段1 devShell/direnv/dx 0.7.10 完成，见上方「ubuntu-dev VM 环境」块）；VM Host-Only IP 未记录（阶段4 收尾时补 env.md）
             执行（ubuntu-dev VM）：
-                阶段0（用户侧）：VBoxManage startvm ubuntu-dev（或 GUI）启动；提供 Host-Only IP 确认 SSH 可达
-                阶段1 最小配置：SSH 进 VM → 装 git/openssh-server → 装 Nix multi-user（determinate-nix，需 sudo+出网）
-                    风险：VM 走 NAT 出网，宿主代理 7897 不自动生效 → VM 内配同款代理（网关 10.0.2.2）否则 nix 拉闭包慢/失败
-                阶段2 项目就位：wsl 侧 rsync 仓库到 VM（免 GitHub 认证）→ nix develop（首建 devShell+dx，分钟级）
-                阶段3 运行验证：VM 桌面登录后 SSH 带 DISPLAY=:0 跑 cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书）→ 弹窗 → gnome-screenshot 截图经 scp 拉回看图确认（read 支持 PNG）→ 用户 VirtualBox 窗口肉眼复核
-                阶段4 收尾：env.md 拓扑补 VM IP 事实；按文档跑「装完快照」；cairn LOG
+                ✔ 阶段0（用户侧）：VBoxManage startvm ubuntu-dev（或 GUI）启动；提供 Host-Only IP 确认 SSH 可达 @high @done(26-08-29 00:42)
+                ✔ 阶段1 最小配置：已完成（git/openssh-server/Nix multi-user+flakes 已装，官方 daemon 安装；非本表旧写 determinate-nix）
+                ✔ 阶段2 项目就位：已完成（SSH git clone + nix develop/devShell+direnv，见「ubuntu-dev VM 环境」块）
+                ☐ 阶段3 运行验证：VM 桌面登录后 SSH 带 DISPLAY=:0 跑 cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书）→ 弹窗 → gnome-screenshot 截图经 scp 拉回看图确认（read 支持 PNG）→ 用户 VirtualBox 窗口肉眼复核 @critical
+                ☐ 阶段4 收尾：env.md 拓扑补 VM IP 事实；按文档跑「装完快照」（env-ready）；cairn LOG @high
         ☐ D-09 gix Windows 侧五项实测 @high
             原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
             项：NTFS ignorecase 自动探测 / >260 路径 checkout / 模拟 system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测 fixtures 验证
@@ -79,6 +78,16 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ☐ CI core-quality 实跑验证 @high
             原因：feature/m1-core ahead 10 未 push + 工作流仅监听 master push/PR（feature 分支不触发）
             执行：合并 feature/m1-core → master → push（D-14 直推保线性），观察 Actions core-quality 绿
+
+ubuntu-dev VM 环境（D-16 备用，M0 桌面范围; 操作手册见 cairn/ubuntu-vm-setup.md）:
+    依据：doc/env.md §1 开发环境拓扑 / decisions.md D-16；网络加速见 cairn/nix-mirror-proxy.md
+    ✔ 阶段0 最小配置：Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照 base-minimal @done(26-08-28)
+    ✔ 阶段1 devShell+direnv：nix flake check ✅ / cargo test 34 绿 ✅ / dx --version 0.7.10 ✅ @done(26-08-28)
+    ☐ 阶段2 skills-manager GUI+CLI + Starship @high
+        注：import <nixpkgs> 若报错先配 channel（USTC nix-channels）；脚本/哈希事实源见 cairn/nix-env-tooling.md
+    ☐ 阶段3 opencode：nixpkgs#opencode + auth login + skills deploy --agent opencode @high
+        注：须在已加载 devShell 的终端启动（继承式，cairn/nix-project-flake.md 坑5）
+    ☐ 阶段4 验收 + 快照 env-ready：fmt/clippy/audit + dx serve --platform desktop @high
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）

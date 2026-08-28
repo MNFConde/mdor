@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M1 已落地**——Cargo workspace（`mdor-core` + `mdor-app`）、core 业务骨架（error/model/store 持久化 / source trait / migration / services 薄门面+命令 / versioning+gix 存储基座 / tracing 门面）、书架 UI 渲染 library.json 真实数据、ci.yml core-quality；下一里程碑 M2（StaticSiteSource 静态站镜像）按 plan.todo 推进；仓库另含 `doc/` 规划文档。
+mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M1 已落地**——Cargo workspace（`mdor-core` + `mdor-app`）、core 业务骨架（error/model/store 持久化 / source trait / migration / services 薄门面+命令 / versioning+gix 存储基座 / tracing 门面）、书架 UI 渲染 library.json 真实数据、ci.yml core-quality；下一里程碑 M2（StaticSiteSource 静态站镜像）按 plan.todo 推进（里程碑定义/验收见 [doc/project.md §10](doc/project.md#10-里程碑) 与 [cairn/ROADMAP.md](cairn/ROADMAP.md)，plan.todo 仅执行任务表）；仓库另含 `doc/` 规划文档。
 
 > 本项目使用 Project Cairn 组织项目知识：Cairn 全套规则（初始化配置/阅读顺序/文档职责/冲突仲裁/知识库消费反射/知识沉淀规则）见 `cairn/AGENTS.md`。
 > 本机装有 project-cairn skill 且仓库存在 `cairn/` 时生效；否则视为不适用，跳过。
