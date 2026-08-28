@@ -22,7 +22,7 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 与用户交流一律使用中文
 - 指令若与仓库文档（`doc/`）或既有约定不符，先指出冲突点、说明取舍，再执行
 - 项目状态发生变化（如 M1 落地、workspace 建立、工具链变更）时，同步更新本文件对应的状态描述，避免误导后续会话
-- 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取
+- 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取；提交相关经验/坑须登记于该文件「六」节
 - 协作模式（维护者直推 master 保线性 + 外部 PR squash 合入）见仓库根 `CONTRIBUTING.md` / [doc/decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)
 - 目录级专属约束见 `doc/AGENTS.md`（doc/ 写作约定）与 `script/AGENTS.md`（script/ 目录约定），读取对应目录下文件时自动生效
 

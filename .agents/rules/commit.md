@@ -2,6 +2,9 @@
 
 > 作用范围：本仓库所有提交。安装钩子（一次性，本地配置不入库）：`git config core.hooksPath .githooks`
 
+> 本文件为提交相关经验/坑的**必选登记处**：后续任何提交相关教训，必须在本文件
+> 「六」节登记一份（可在 cairn/ 另存详情），不得只沉淀在 cairn/ 知识文档。
+
 ## 一、标准完整格式（多行详细版）
 
 当改动逻辑较复杂时，建议使用多行信息：
@@ -66,8 +69,20 @@
 - [ ] 正文解释了"为什么改"，每行 ≤72 字符
 - [ ] 破坏性变更已注明 `BREAKING CHANGE: <描述>`
 - [ ] 关联 Issue 已用 `Closes #xxx` 标注
+- [ ] 提交信息含中文时走 UTF-8 文件 `-F`（Windows/PS 5.1 勿用管道喂 git，见六）
 
-## 六、钩子安装
+## 六、提交相关经验与坑（必选登记）
+
+> 提交相关教训必须在本节登记一份精简版（附 cairn/ 详情指针），供提交时一眼可见。
+
+### 6.1 Windows / PowerShell 5.1 中文编码
+
+- **坑**：Windows 宿主 PowerShell 5.1 下，`@'…'@ | git commit -F -` 管道把提交信息中文字符写成字面 `?`（0x3F）——管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），字节级损坏、非显示伪影（`cmd /c "git log -1 --format=%B"` 直读原始字节仍是 `?` 可证）。
+- **对策**：提交信息含中文时，写 UTF-8 无 BOM 消息文件再 `git commit -F <file>`；或先 `$OutputEncoding=[Text.Encoding]::UTF8` 再管道。
+- **校验**：`cmd /c "git log -1 --format=%B"` 不得含 `?`（显示层乱码 ≠ 损坏）。
+- **详情**：cairn/powershell-encoding.md 坑8（2026-08-29 实证，commit afcec32 / d4dadea）。
+
+## 七、钩子安装
 
 一次性执行（本地配置，不入库，不自动推送）：
 
