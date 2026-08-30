@@ -88,6 +88,13 @@
 - **对策**：主题用中文/小写开头，编号放后面，如 `docs: 补 D-16 …`；避免主题以 `A-Z`/`0-9` 之外的 ASCII 大写打头。
 - **详情**：script/check-commit-msg.py 的 `SUBJECT_RE` + 首字符校验（2026-08-30 实证，commit d792471）。
 
+### 6.3 钩子静默跳过（hooksPath 未配置 / 钩子无执行位）+ VM 侧 uv 依赖
+
+- **坑①**：新环境 clone 后 `core.hooksPath` 未配置（本地配置不入库，见七）或 `.githooks/commit-msg` 入库时无执行位（mode 100644），钩子被**静默跳过**——git 仅在首次提交时输出一行 hint，无校验的提交照样入库（26-08-30 实证：一次消息与暂存内容不符的提交因钩子未跑而未被发现，靠事后 `git show --stat HEAD` 核对才纠正）。
+- **对策**：clone 后执行七的 hooksPath 配置；执行位已随仓库修复（100755）；每次提交后瞄一眼有无「提交信息格式校验通过」输出，没有 = 钩子没跑，先查 `git config core.hooksPath` 与执行位。
+- **坑②**：钩子脚本依赖 `uv run`，环境无 uv 时提交直接失败（`uv: not found`，报错在钩子行不直观）→ `nix profile install nixpkgs#uv`。
+- **详情**：cairn/LOG.md 2026-08-30 条目（ubuntu-dev VM 首次提交实测）。
+
 ## 七、钩子安装
 
 一次性执行（本地配置，不入库，不自动推送）：
