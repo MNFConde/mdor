@@ -23,7 +23,7 @@
 
 ## check-commit-msg.py
 
-- **作用**：校验提交信息首行 `类型(范围): 主题` 结构与 10 种类型白名单、主题规则、正文行 ≤72 字符、`BREAKING CHANGE:` / `Closes #` footer 格式；豁免 `Merge` / `Revert` / `fixup!` / `squash!` 与 `#` 注释行。规则全文见 `.agents/rules/commit.md`
+- **作用**：校验提交信息首行 `类型(范围): 主题` 结构与 10 种类型白名单、主题规则、主题行与正文行显示宽度 ≤72 列（全角字符按 2 列计）、正文有效行 ≤20 行（脚注段不计入）、`BREAKING CHANGE:` / `Closes #` footer 格式；豁免 `Merge` / `Revert` / `fixup!` / `squash!` 与 `#` 注释行。规则全文见 `.agents/rules/commit.md`
 - **用法**：`uv run --directory script check-commit-msg.py <提交信息文件>`（git 提交时由 commit-msg 钩子自动调用）
 - **退出码**：0 = 格式通过；1 = 存在违规（逐条列出）；2 = 参数错误
 
