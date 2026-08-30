@@ -487,4 +487,207 @@ mod tests {
         assert_eq!(object.data, crlf, "autocrlf=false 下工作区字节 ≡ blob 字节");
         assert_eq!(fs::read(dir.join("win.html")).unwrap(), crlf.to_vec());
     }
+
+    // ===== D-09 Windows 侧实测（plan.todo M1 遗留；decisions.md D-09 待实测项）=====
+    // 仅在 Windows 上编译执行（需 NTFS 语义 + Git for Windows system 配置；ubuntu CI 编译期剔除）。
+    // 探针轮结论（2026-08-30，Windows 宿主 NTFS + gix 0.87.1 + Git for Windows system autocrlf=true）：
+    //   ① init 自动探测写 core.ignorecase=true；② >260 长路径 checkout 无碍；
+    //   ③ 裸 init 可见 system autocrlf=true（毒药环境实锤），双施加点压成 false；
+    //   ④ 大小写碰撞 checkout 静默覆盖（无告警，树序后者胜出）——tree 级检测前置的实证依据。
+    #[cfg(windows)]
+    mod windows_gix {
+        use super::*;
+
+        /// 实测项 1：NTFS ignorecase 自动探测——gix init 时经 `Capabilities::probe`
+        /// 探测文件系统并写入 `core.ignorecase`，且经 apply_safety_config 重写后仍保留。
+        #[test]
+        fn init_probes_ignorecase_true() {
+            let (dir, repo) = temp_repo("win_ignorecase");
+            let raw = fs::read_to_string(dir.join(".git/config")).unwrap();
+            assert!(
+                raw.contains("ignorecase = true"),
+                "NTFS 上 gix init 应探测并写入 core.ignorecase=true：{raw}"
+            );
+            let caps = repo.repo.filesystem_options().unwrap();
+            assert!(
+                caps.ignore_case,
+                "open 后 fs_capabilities 应报告 ignore_case=true"
+            );
+        }
+
+        /// 实测项 2：>260 路径 checkout——gix 走 Rust std::fs（长路径自动 \\?\ 前缀），
+        /// 预期无碍。临时目录基路径 ~60 字符 + 相对路径 ~300 字符，全路径 >350。
+        #[test]
+        fn checkout_long_path_beyond_260() {
+            let (dir, repo) = temp_repo("win_longpath");
+            let seg = "n".repeat(40);
+            let mut rel = PathBuf::new();
+            for _ in 0..7 {
+                rel.push(&seg);
+            }
+            rel.push("leaf.html");
+            let total = dir.join(&rel).to_string_lossy().len();
+            assert!(total > 260, "构造的全路径应超 260：实际 {total}");
+
+            let content = b"deep-content".to_vec();
+            let id = repo
+                .commit_workdir(&[(rel.clone(), content.clone())], "长路径", vec![])
+                .unwrap();
+            let path = dir.join(&rel);
+            assert_eq!(fs::read(&path).unwrap(), content, "长路径文件字节应一致");
+
+            repo.checkout(id).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), content, "硬切换复检字节应一致");
+        }
+
+        /// 实测项 3：system 级 `core.autocrlf=true`（本机 Git for Windows 实况，helix
+        /// #6467 同款毒药环境）被压成 false——repo-local（施加点 1）+ open
+        /// config_overrides（施加点 2）叠加后有效值必须为 false，且经 open 实例
+        /// commit + checkout 的 CRLF 字节端到端保真。
+        #[test]
+        fn open_suppresses_system_autocrlf() {
+            // 探针仓库放书籍工作区之外：裸 init（无 local autocrlf），验证 gix
+            // 确实读到 system 级配置（毒药环境存在性前提）。
+            let probe_path = std::env::temp_dir().join("mdor-d09-probe-raw");
+            let _ = fs::remove_dir_all(&probe_path);
+            let probe = gix::init(&probe_path).expect("裸 init 探针仓库");
+            assert_eq!(
+                probe.config_snapshot().boolean("core.autocrlf"),
+                Some(true),
+                "前提：gix 裸 init 应读到 system 级 autocrlf=true（本机毒药环境）"
+            );
+
+            let (dir, _unused) = temp_repo("win_autocrlf");
+            let reopened = BookRepo::open(&dir).unwrap();
+            assert_eq!(
+                reopened.repo.config_snapshot().boolean("core.autocrlf"),
+                Some(false),
+                "open 后有效 autocrlf 必须为 false（双施加点压掉 system=true）"
+            );
+
+            let crlf = b"<p>win\r\nline</p>\r\n".to_vec();
+            let id = reopened
+                .commit_workdir(&[(PathBuf::from("win.html"), crlf.clone())], "CRLF", vec![])
+                .unwrap();
+            assert_eq!(
+                fs::read(dir.join("win.html")).unwrap(),
+                crlf,
+                "open 实例 commit 后工作区字节应保真"
+            );
+            let root = reopened
+                .repo
+                .find_object(id)
+                .unwrap()
+                .peel_to_tree()
+                .unwrap()
+                .id;
+            let blob = tree_lookup(&reopened.repo, root, "win.html").unwrap();
+            assert_eq!(
+                reopened.repo.find_object(blob).unwrap().data,
+                crlf,
+                "open 实例 commit 后 blob 字节应保真"
+            );
+        }
+
+        /// 实测项 4：大小写碰撞 checkout 实际行为。
+        /// 探针轮结论：commit 成功、checkout **静默覆盖**（无告警无报错），NTFS 物理单
+        /// 文件，内容 = 树序后者（readme.html → "lower"）。钉为回归断言：
+        /// 若 gix 行为变化（如加告警/报错），此处失败即提示重评 D-09 定案 3。
+        #[test]
+        fn case_collision_checkout_overwrites_silently() {
+            let (dir, repo) = temp_repo("win_case_checkout");
+            repo.commit_workdir(
+                &files(&[("Readme.html", "UPPER"), ("readme.html", "lower")]),
+                "大小写碰撞",
+                vec![],
+            )
+            .expect("碰撞条目 commit 应成功（对象层两条目共存）");
+
+            // NTFS 物理只能落一个文件；两种 case 的路径查询都命中同一物理文件。
+            assert!(
+                dir.join("Readme.html").exists() || dir.join("readme.html").exists(),
+                "碰撞 checkout 应落一个物理文件"
+            );
+            let physical = fs::read_to_string(dir.join("Readme.html")).unwrap_or_else(|_| {
+                fs::read_to_string(dir.join("readme.html")).expect("物理文件可读")
+            });
+            assert_eq!(
+                physical, "lower",
+                "静默覆盖：树序后者（readme.html）胜出，前一条目字节丢失"
+            );
+        }
+
+        /// 实测项 5：tree 级大小写冲突检测的前提——对象层两条目恒共存。
+        /// 用 build_tree 直构（绕过 checkout；物理层行为归实测项 4）。
+        #[test]
+        fn case_collision_tree_keeps_both_entries() {
+            let (_, repo) = temp_repo("win_case_tree");
+            let oid_up = repo.repo.write_blob(b"UPPER").unwrap().detach();
+            let oid_low = repo.repo.write_blob(b"lower").unwrap().detach();
+            let tree_id = build_tree(
+                &repo.repo,
+                &[
+                    (PathBuf::from("Readme.html"), oid_up),
+                    (PathBuf::from("readme.html"), oid_low),
+                ],
+            )
+            .unwrap();
+            let tree = repo
+                .repo
+                .find_object(tree_id)
+                .unwrap()
+                .peel_to_tree()
+                .unwrap();
+            let names: Vec<String> = tree
+                .decode()
+                .unwrap()
+                .entries
+                .iter()
+                .map(|e| e.filename.to_string())
+                .collect();
+            assert!(
+                names.contains(&"Readme.html".to_string())
+                    && names.contains(&"readme.html".to_string()),
+                "对象层应两条目共存：{names:?}"
+            );
+            assert_eq!(
+                tree_lookup(&repo.repo, tree_id, "Readme.html").unwrap(),
+                oid_up
+            );
+            assert_eq!(
+                tree_lookup(&repo.repo, tree_id, "readme.html").unwrap(),
+                oid_low
+            );
+        }
+
+        /// 实测项 6：同/异 blob 判定——读两路径 blob oid 是否相等
+        ///（D-09「同 blob 归一 / 异 blob 双渲染」的判定原语）。
+        #[test]
+        fn case_collision_blob_oid_discrimination() {
+            let (_, repo) = temp_repo("win_case_oid");
+            let same = b"same-bytes";
+            let oids = [
+                repo.repo.write_blob(same).unwrap().detach(),
+                repo.repo.write_blob(same).unwrap().detach(),
+                repo.repo.write_blob(b"A").unwrap().detach(),
+                repo.repo.write_blob(b"B").unwrap().detach(),
+            ];
+            let tree_id = build_tree(
+                &repo.repo,
+                &[
+                    (PathBuf::from("Same.html"), oids[0]),
+                    (PathBuf::from("same.html"), oids[1]),
+                    (PathBuf::from("Diff.html"), oids[2]),
+                    (PathBuf::from("diff.html"), oids[3]),
+                ],
+            )
+            .unwrap();
+            let up = tree_lookup(&repo.repo, tree_id, "Same.html").unwrap();
+            let low = tree_lookup(&repo.repo, tree_id, "same.html").unwrap();
+            let d1 = tree_lookup(&repo.repo, tree_id, "Diff.html").unwrap();
+            let d2 = tree_lookup(&repo.repo, tree_id, "diff.html").unwrap();
+            assert_eq!(up, low, "同内容异 case：oid 相等 → 归一判定可行");
+            assert_ne!(d1, d2, "异内容异 case：oid 不等 → 异 blob 判定可行");
+        }
+    }
 }
