@@ -61,33 +61,37 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
         ✔ 收尾：质量门禁全绿（fmt/clippy/test 34 绿/audit exit 0）+ cairn/LOG + ROADMAP 更新 @done(26-08-27 20:30)
     M1 遗留（环境受限，留待环境合适时执行）:
         因 nixos-wsl 环境限制未完成、需换环境/宿主执行的验收项（26-08-27 记录）：
-        ☐ 书架弹窗视觉确认 @critical
+        ✔ 书架弹窗视觉确认 @critical @done(26-08-30 19:30)
             原因：WSLg 截图工具链受限（合成器不支持 wlr-screencopy / imagemagick 无 X11 delegate / xwd·scrot 缺失）；日志已证渲染管线（渲染时读取 library.json 609 字节）但无视觉证据
             路径：ubuntu-dev VM（D-16 第一触发场景：dioxus Linux 桌面 GUI 调试）；Windows 宿主为备选
-            前提：✔ VM 环境已就绪（26-08-28：阶段0 最小配置 + 阶段1 devShell/direnv/dx 0.7.10 完成，见上方「ubuntu-dev VM 环境」块）；VM Host-Only IP 未记录（阶段4 收尾时补 env.md）
+            前提：✔ VM 环境已就绪（26-08-28：阶段0 最小配置 + 阶段1 devShell/direnv/dx 0.7.10 完成，见上方「ubuntu-dev VM 环境」块）；VM IP 实测为 NAT（26-08-30 更正，见 env.md §1）
             执行（ubuntu-dev VM）：
                 ✔ 阶段0（用户侧）：VBoxManage startvm ubuntu-dev（或 GUI）启动；提供 Host-Only IP 确认 SSH 可达 @high @done(26-08-29 00:42)
                 ✔ 阶段1 最小配置：已完成（git/openssh-server/Nix multi-user+flakes 已装，官方 daemon 安装；非本表旧写 determinate-nix）
                 ✔ 阶段2 项目就位：已完成（SSH git clone + nix develop/devShell+direnv，见「ubuntu-dev VM 环境」块）
-                ☐ 阶段3 运行验证：VM 桌面登录后 SSH 带 DISPLAY=:0 跑 cargo run -p mdor-app + 预置 seed target/debug/data/bookstore/library.json（2 本书）→ 弹窗 → gnome-screenshot 截图经 scp 拉回看图确认（read 支持 PNG）→ 用户 VirtualBox 窗口肉眼复核 @critical
-                ☐ 阶段4 收尾：env.md 拓扑补 VM IP 事实；按文档跑「装完快照」（env-ready）；cairn LOG @high
+                ✔ 阶段3 运行验证 @critical @done(26-08-30 18:00)
+                    ✔ seed library.json（2 本书）+ SSH 带 X11 env 跑 cargo run → 弹窗渲染 2 本书（像素分析 8 文本行段 = 1 标题 + 2×条目组）@done(26-08-30 18:00)
+                    ✔ gnome-screenshot 截图取证（sudo apt install 后自助，/tmp/opencode/mdor-final.png）→ 用户 VirtualBox 窗口肉眼复核通过 @done(26-08-30 18:00)
+                    注：WebKit EGL 崩溃坑与修复环境变量组合沉淀于 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」+ env.md §6 排查表
+                ✔ 阶段4 收尾：env.md 拓扑补 VM IP 事实（✔ 已补 NAT 实测）；按文档跑「装完快照」（env-ready）；cairn LOG @high @done(26-08-30 19:30)
         ☐ D-09 gix Windows 侧五项实测 @high
             原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
             项：NTFS ignorecase 自动探测 / >260 路径 checkout / 模拟 system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测 fixtures 验证
             执行（Windows 宿主，M0 环境仍在）：见 doc/decisions.md D-09 待实测项
         ☐ CI core-quality 实跑验证 @high
-            原因：feature/m1-core ahead 10 未 push + 工作流仅监听 master push/PR（feature 分支不触发）
+            原因：feature/m1-core 已 push（26-08-30 确认 origin 同步）但工作流仅监听 master push/PR（feature 分支不触发）
             执行：合并 feature/m1-core → master → push（D-14 直推保线性），观察 Actions core-quality 绿
 
 ubuntu-dev VM 环境（D-16 备用，M0 桌面范围; 操作手册见 cairn/ubuntu-vm-setup.md）:
     依据：doc/env.md §1 开发环境拓扑 / decisions.md D-16；网络加速见 cairn/nix-mirror-proxy.md
     ✔ 阶段0 最小配置：Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照 base-minimal @done(26-08-28)
     ✔ 阶段1 devShell+direnv：nix flake check ✅ / cargo test 34 绿 ✅ / dx --version 0.7.10 ✅ @done(26-08-28)
-    ☐ 阶段2 skills-manager GUI+CLI + Starship @high
-        注：import <nixpkgs> 若报错先配 channel（USTC nix-channels）；脚本/哈希事实源见 cairn/nix-env-tooling.md
-    ☐ 阶段3 opencode：nixpkgs#opencode + auth login + skills deploy --agent opencode @high
-        注：须在已加载 devShell 的终端启动（继承式，cairn/nix-project-flake.md 坑5）
-    ☐ 阶段4 验收 + 快照 env-ready：fmt/clippy/audit + dx serve --platform desktop @high
+    ✔ 阶段2 skills-manager GUI+CLI + Starship @high @done(26-08-30 20:10)
+        注（26-08-30 实测）：skills-manager GUI+CLI 1.34.2 均在 profile（repo init 5 skills/2 presets）；Starship 1.26.0 装机 + bashrc hook + ~/.config/starship.toml（nix-env-tooling.md attrset 忠实转译，time 模块同 WSL 机默认禁用）；GUI 冒烟一次即失败（bwrap uid map 被 Ubuntu 24.04 apparmor_restrict_unprivileged_userns 拒绝，未到 WebKit 层）——按约定不重试，CLI 正常可用，GUI 待需要时排障（见 cairn/ubuntu-vm-setup.md 阶段2）
+    ✔ 阶段3 opencode：nixpkgs#opencode + auth login + skills deploy --agent opencode @high @done(26-08-30 20:05)
+        注（26-08-30 实测）：opencode 1.18.21 在 profile；auth 2 credentials（Z.AI/commandcode）；5 skills 已 deploy（~/.config/opencode/skills/）；devShell 继承式启动验证（本会话进程 NIX_* env 完整）
+    ✔ 阶段4 验收 + 快照 env-ready：fmt/clippy/audit + dx serve --platform desktop
+        注（26-08-30）：fmt/clippy/audit VM 实跑全绿（test 34）；弹窗验收以 cargo run -p mdor-app 等效完成（同一应用同一窗口，肉眼复核通过），未单独跑 dx serve；env-ready 快照已打 @high @done(26-08-30 19:30)
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）

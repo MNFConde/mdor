@@ -57,10 +57,18 @@
 |---|---|---|
 | 宿主机 Windows 原生 | Windows 桌面端构建+验证；安卓模拟器宿主 | VirtualBox **7.2.16** r174877 @ `D:\VirtualBox` + Extension Pack；Android Studio **待装**（走 Scoop）；SDK → `D:\Software\Android\Sdk`、AVD 目录由 `ANDROID_AVD_HOME=D:\Software\Android\avd` 指定（路径已定，未落地） |
 | nixos-wsl | 日常主力 Linux 环境（Remote-WSL/SSH；Android 交叉编译；产物 `adb connect` 推宿主机模拟器） | WSL2 默认发行版已就绪；开发依赖由仓库 `flake.nix` 单源管理（2026-08-25 落地：Rust 工具链单源自 `rust-toolchain.toml`、dx 0.7.10 由 shellHook 钉版、质量门禁工具、dioxus 桌面 Linux 库；**Android SDK/NDK/JDK 的声明式锁定 = M6 待办**，见 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)；不走 §1 矩阵的 `<仓库>\dev\` 便携树——那是宿主机 M6 方案）；环境侧个人工具（skills-manager CLI / Starship）见 [cairn/nix-env-tooling.md](../cairn/nix-env-tooling.md)；`.wslconfig` 上限 4 核 / 6G |
-| ubuntu-dev VM（备用） | 仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通 | Ubuntu **24.04.4** Desktop（无人值守安装），4 核 / 6G 内存 / 80G 动态 VDI / EFI / NIC1=NAT + NIC2=Host-Only / USB3.0(xHCI)；配置与磁盘在 `D:\Software\VM_Resource\ubuntu-dev\`；环境同样走 `flake.nix`；环境准备操作手册见 [cairn/ubuntu-vm-setup.md](../cairn/ubuntu-vm-setup.md) |
+| ubuntu-dev VM（备用） | 仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通 | Ubuntu **24.04.4** Desktop（无人值守安装），4 核 / 6G 内存 / 80G 动态 VDI / EFI / USB3.0(xHCI)；配置与磁盘在 `D:\Software\VM_Resource\ubuntu-dev\`；环境同样走 `flake.nix`；环境准备操作手册见 [cairn/ubuntu-vm-setup.md](../cairn/ubuntu-vm-setup.md)。**实测网络（2026-08-30）**：仅 NIC1=NAT（无 NIC2 Host-Only，[【已替换】 NIC2=Host-Only 原规划](#nic2host-only-原规划与实测修正)），SSH = 宿主端口转发 → VM `10.0.2.15:22`（宿主侧 `127.0.0.1:2222`） |
 
 - 备用化最小配置（首次触发使用场景前补齐）：Guest Additions、openssh-server、git、Nix multi-user、装完快照。
 - ISO/extpack 等安装介质统一放 `D:\Software\VM_Resource\`。
+
+#### NIC2=Host-Only 原规划与实测修正
+
+> [!WARNING] 【已替换】 VM 网络原规划 NIC1=NAT + NIC2=Host-Only
+>
+> 原因：2026-08-30 首次 GUI 调试触发时实测，该 VM 实例只有 enp0s3（NAT），从未配置第二块网卡；SSH 一直走 NAT 端口转发（宿主 127.0.0.1:2222 → VM 10.0.2.15:22）。
+>
+> mdor 各里程碑（M2 镜像/M6 adb/USB 直通）均不依赖 Host-Only——NAT 转发已满足 SSH + scp + agent 会话需求。固定 IP 诉求（宿主机其他服务直访 VM）出现时再补 NIC2，届时回改本表与 cairn/ubuntu-vm-setup.md §0.2。
 
 ---
 
@@ -406,6 +414,8 @@ dx doctor         # 工具链体检（框架/环境升级后）
 | Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics` | 真机 API < 30 | 在 `Dioxus.toml` 设 `min_sdk_version = 30` |
 | WSLg 桌面跑 dioxus 报 `libEGL`/`MESA-ZINK failed to choose pdev` 警告 | WSLg 无 GPU 直通，走软件渲染回退（zink） | 属噪声非错误，窗口正常渲染；渲染验证用日志（`RUST_LOG=mdor_core=debug` 见 store 读取）或宿主肉眼 |
 | WSLg 截图失败（grim 报合成器不支持 wlr-screencopy / imagemagick `x:` 无 X11 delegate / 缺 xwd·scrot） | WSLg 合成器未实现屏幕捕获协议、nixpkgs imagemagick 未编 X11 delegate | 视觉验证改 ubuntu-dev VM / Windows 宿主；或接受日志证据（渲染时读取 library.json） |
+| VM 桌面跑 dioxus 报 `Could not create default EGL display: EGL_BAD_PARAMETER`，WebKitWebProcess 反复自杀（黑窗/空白窗） | VirtualBox 显卡 VMSVGA 模拟 VMware（`vmwgfx`），nix mesa ≥25 已移除该 DRI 驱动 → WebKit GPU 进程 GBM 平台 EGL 初始化崩溃 | 启动前注入（devShell 内）：`WEBKIT_DISABLE_COMPOSITING_MODE=1 GSK_RENDERER=cairo LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe __EGL_VENDOR_LIBRARY_FILENAMES=<nix-mesa>/share/glvnd/egl_vendor.d/50_mesa.json WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1`；详见 [cairn/ubuntu-vm-setup.md §GUI 调试](../cairn/ubuntu-vm-setup.md) |
+| VM 内 `gnome-screenshot` 报 AccessDenied（D-Bus org.gnome.Shell.Screenshot） | GNOME 41+ 截图接口仅放行授权调用方 | `sudo apt install gnome-screenshot`（mutter 白名单工具），`gnome-screenshot -f <path>`；SSH 会话须带 `XDG_RUNTIME_DIR=/run/user/1000` |
 
 ---
 

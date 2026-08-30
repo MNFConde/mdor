@@ -101,6 +101,7 @@ sudo systemctl restart nix-daemon
 # 验证: sudo systemctl show nix-daemon -p Environment
 ```
 - nix.conf 的 `build-extra-env` **管不到 daemon 自身 fetcher**（只管构建进程），对二进制替换/fixed-output 无效。
+- **daemon 持久代理 × clash 停运 = `nix build` 全断**（2026-08-30 实测误诊陷阱）：daemon 注入的 `http_proxy=127.0.0.1:7890` 指向的 clash 没起时，curl 等客户端一切正常（shell 无代理变量），唯 nix 报 `Could not connect to server (7) Failed to connect ... via 127.0.0.1 after 0 ms`。**判别信号**：curl 通 + nix 不通 → 查 `sudo systemctl show nix-daemon -p Environment`；处理 = 启 clash，或临时 `sudo systemctl edit nix-daemon` 清代理 + restart。
 
 ## clash 端口语义与双代理坑
 

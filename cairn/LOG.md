@@ -1,6 +1,15 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-30 · M1 书架视觉验收闭环（ubuntu-dev VM 首次 GUI 调试）+ WebKit EGL 崩溃根因沉淀
+
+- M1 遗留 @critical「书架弹窗视觉确认」在 ubuntu-dev VM 闭环：SSH 带 X11 env 起 `cargo run`（Xwayland）→ seed 2 本书渲染（像素分析 8 文本行段 = 1 标题 + 2 条目组）→ `gnome-screenshot` 取证 → 用户 VirtualBox 肉眼复核通过。质量门禁 VM 实跑全绿（fmt/clippy/test 34/audit exit 0）。
+- 核心坑：VirtualBox VMSVGA 模拟 VMware（vmwgfx）× nix mesa ≥25 已移除该 DRI 驱动 → WebKit GPU 进程 EGL 初始化崩（`EGL_BAD_PARAMETER`）→ WebProcess 反复自杀黑窗。环境变量绕不过，解法 = llvmpipe 软渲染 + `__EGL_VENDOR_LIBRARY_FILENAMES` 指到 `nixpkgs#mesa`（devShell 的 mesa-libgbm 无头子集缺 libEGL_mesa）。变量矩阵试错多轮，最终 strace openat 一击定位（glvnd 读系统 vendor json 找不到 libEGL_mesa）。
+- 网络事实更正：VM 从未配置 NIC2 Host-Only，SSH 实际走 NAT 端口转发（10.0.2.15:22）——env.md §1 补【已替换】块、ubuntu-vm-setup.md §0.2 加更正注。
+- 沉淀：[ubuntu-vm-setup.md](ubuntu-vm-setup.md) 新增「GUI 调试操作要点」（完整环境变量组合 / 成功判据=WebKitWebProcess 存活 / strace-ctypes-strings 诊断三件套）；env.md §6 排查表补 EGL 坑 + gnome-screenshot AccessDenied 坑；plan.todo 勾阶段3。
+- 补充沉淀（同日第二轮）：① nix-daemon 持久代理 × clash 停运 = `nix build` 全断的误诊陷阱（curl 通 + nix 报 connect 127.0.0.1 失败即查 daemon env）→ [nix-mirror-proxy.md](nix-mirror-proxy.md) 代理架构节；② agent 不支持读图 → 截图像素分析固化为 [script/shot-analyze.py](../script/shot-analyze.py)（三 fixture 冒烟全过）+ **临时脚本三次法则**成文（script/AGENTS.md 规则节 + 根 AGENTS.md 指针 + scripts.md 临时探针台账）。
+- 阶段4 全部闭环：env-ready 快照已打（26-08-30 用户侧）。~~VM 环境块阶段2/3 仍待做~~【更正 26-08-30 晚】阶段2/3 已全部闭环：阶段3 实测早已完成（opencode 1.18.21 + auth 2 credentials + 5 skills deploy + devShell 继承式启动）；阶段2 补装 Starship 1.26.0 后闭环（skills-manager GUI+CLI 1.34.2 早已在 profile）；GUI 冒烟一次即失败（bwrap uid map 被 Ubuntu apparmor userns 限制拒绝，未到 WebKit 层，不重试）。plan.todo VM 环境块全勾；环境侧细节见 [ubuntu-vm-setup.md](ubuntu-vm-setup.md)。
+- 门禁：VM 内 fmt/clippy/test/audit 全绿 + check-links.py 通过。
 ## 2026-08-30 · 环境侧 /etc/nixos home-manager 接线两坑修复（users 传路径 + extraSpecialArgs 包裹 inputs）
 
 - 环境侧 flake（/home/morr/nixos-config/default）`nix build` 连续两错：① `home-manager.users.morr = import ./home.nix { inherit inputs; }` 手动调用模块函数只给 `inputs` → `function ... called without required argument 'config'`；② 改传路径 `./home.nix` 后 `home-manager.extraSpecialArgs = inputs;` 摊平 flake inputs（specialArgs key = self/nixpkgs/charmbracelet-nur…），home.nix 声明 `{ inputs, ... }` 解析不到 → infinite recursion（栈内 `argument `inputs` is not externally provided, so querying `_module.args` instead`）。

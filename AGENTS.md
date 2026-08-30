@@ -24,7 +24,7 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 项目状态发生变化（如 M1 落地、workspace 建立、工具链变更）时，同步更新本文件对应的状态描述，避免误导后续会话
 - 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取；提交相关经验/坑须登记于该文件「六」节
 - 协作模式（维护者直推 master 保线性 + 外部 PR squash 合入）见仓库根 `CONTRIBUTING.md` / [doc/decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)
-- 目录级专属约束见 `doc/AGENTS.md`（doc/ 写作约定）与 `script/AGENTS.md`（script/ 目录约定），读取对应目录下文件时自动生效
+- 目录级专属约束见 `doc/AGENTS.md`（doc/ 写作约定）与 `script/AGENTS.md`（script/ 目录约定 + 临时脚本三次法则：同一分析/验证逻辑第 3 次出现必须固化进 script/ 并登记，固化后只准扩展；一次性诊断探针须在 scripts.md 台账登记、跨会话累计 3 次同样固化），读取对应目录下文件时自动生效
 
 ## 检索约定（MCP）
 

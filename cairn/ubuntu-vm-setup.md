@@ -5,7 +5,7 @@ summary: "ubuntu-dev VM（Ubuntu 24.04.4，备用环境，D-16）从裸机到 M0
 tags: [mdor, ubuntu, vm, nix, devshell, direnv, skills-manager, starship, opencode, setup, procedure]
 contains: [procedure]
 created: "2026-08-28"
-updated: "2026-08-28"
+updated: "2026-08-30"
 related: [env.md, decisions.md, nix-env-tooling.md, nix-mirror-proxy.md]
 authoring_mode: ai_generated
 ---
@@ -13,7 +13,7 @@ authoring_mode: ai_generated
 
 ## 背景
 
-三端架构（[decisions.md D-16](../doc/decisions.md#d-16-开发环境三端架构)）下，ubuntu-dev VM（Ubuntu **24.04.4** Desktop，4 核/6G/80G，NIC1=NAT + NIC2=Host-Only，配置与磁盘见 [env.md §1](../doc/env.md#开发环境拓扑)）是备用环境，仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通。本手册记录从裸机到 **M0 桌面可用** 的完整操作流程（2026-08-28 实测落地）；环境侧加速手段（国内镜像 / 代理 / 工具链预置）见 [nix-mirror-proxy.md](nix-mirror-proxy.md)。
+三端架构（[decisions.md D-16](../doc/decisions.md#d-16-开发环境三端架构)）下，ubuntu-dev VM（Ubuntu **24.04.4** Desktop，4 核/6G/80G，网络实测 = 仅 NIC1 NAT（原规划 NIC2=Host-Only 未配置，更正见 §0.2），配置与磁盘见 [env.md §1](../doc/env.md#开发环境拓扑)）是备用环境，仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通。本手册记录从裸机到 **M0 桌面可用** 的完整操作流程（2026-08-28 实测落地）；环境侧加速手段（国内镜像 / 代理 / 工具链预置）见 [nix-mirror-proxy.md](nix-mirror-proxy.md)。
 
 > 范围 = M0（桌面开发）。Android SDK/NDK/JDK 的 flake 声明式锁定为 M6 待办（D-16），本手册不涉及。
 >
@@ -32,11 +32,14 @@ sudo /media/cdrom/VBoxLinuxAdditions.run
 # 重启后验证: lsmod | grep vboxguest
 ```
 
-**0.2 openssh-server（Host-Only NIC2 供宿主机 Remote-SSH）**
+**0.2 openssh-server（宿主机 Remote-SSH）**
+
+> 更正（2026-08-30）：原写 Host-Only NIC2 供 SSH，实测该 VM 实例从未配置 NIC2，SSH 实际一直走 **NAT 端口转发**（宿主 `127.0.0.1:2222` → VM `10.0.2.15:22`）；env.md §1 已改记 NAT 事实。固定 IP 诉求出现时再补 NIC2 并回改两处。
+
 ```bash
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
-ip a   # 记下 enp0s8（Host-Only）的 IP
+ip a   # 记下 VM IP（NAT 内网 10.0.2.15；宿主经端口转发连接）
 ```
 
 **0.3 git**
@@ -110,6 +113,26 @@ echo 'eval "$(starship init bash)"' >> ~/.bashrc
 # ~/.config/starship.toml：format 用 $line_break 分行（目录+git+$ 一行、环境状态一行）
 ```
 
+**2.3 安装实测补充（26-08-30）**：
+
+- Starship 1.26.0 装机正常（USTC 镜像秒下）；`~/.config/starship.toml` 按 nix-env-tooling.md attrset **忠实转译**（time 模块只写 format 不加 disabled = false——该模块默认禁用，VM 与 WSL 机行为一致，`[%H:%M]` 不显示属预期）。
+- bashrc hook 在**系统 bash 5.2**（GNOME Terminal）下干净生效；nix devShell 的 **bash 5.3** 把 `complete`/`progcomp` 挪成 loadable builtin，sourcing Ubuntu 默认 bashrc 的 bash-completion 会报 `complete: command not found`——与 starship 无关的既有条件，不影响真实终端。
+
+**2.4 skills-manager GUI 启动方式与冒烟记录（26-08-30，一次尝试即失败，不重试）**
+
+调用方式（mdor-app 同款 Xwayland 组合，需 devShell 已加载以继承 nix mesa 路径）：
+
+```bash
+# 前置（同 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」）
+export GDK_BACKEND=x11 DISPLAY=:0 XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.*
+export WEBKIT_DISABLE_COMPOSITING_MODE=1 GSK_RENDERER=cairo LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+export __EGL_VENDOR_LIBRARY_FILENAMES=$(nix eval --raw nixpkgs#mesa.out)/share/glvnd/egl_vendor.d/50_mesa.json
+export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+skills-manager
+```
+
+冒烟结果：**未到 WebKit 层即死**——`bwrap: setting up uid map: Permission denied`。根因：appimageTools wrapType2 用 bubblewrap 沙箱起 AppImage，Ubuntu 24.04 默认 `apparmor_restrict_unprivileged_userns=1` 拒绝非特权进程建 uid map。CLI（官方二进制，无沙箱）不受影响、正常可用；GUI 日后若要用，方向 = 关 userns 限制（`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`）或换官方 AppImage 直接跑（`--appimage-extract-and-run`），本文档只记现象不展开。
+
 ## 阶段 3：opencode
 
 ```bash
@@ -139,3 +162,38 @@ dx serve --platform desktop   # 弹出桌面窗口（VM 核心存在意义）
 - VM 内 curl 国内镜像 403（宿主机同 URL 200）→ 多为残留代理变量或出口差异，见 [nix-mirror-proxy.md](nix-mirror-proxy.md) 坑。
 - `dx serve` 无窗口 → 确认在 GUI 会话（Desktop）内运行。
 - 进 `~/mdor` 未自动加载 devShell → 确认 direnv hook 与 `direnv allow` 已做（1.2）。
+
+## GUI 调试操作要点（2026-08-30 M1 书架视觉验收实测）
+
+### WebKit EGL 崩溃（核心坑）
+
+**症状链**：dioxus/WebKitGTK 应用启动 → `Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...` → WebKitWebProcess 反复自杀 → 窗口黑屏或空白（UI 主进程存活，仅 web 内容进程死）。
+
+**根因**：VirtualBox 显卡默认 **VMSVGA** 控制器模拟 VMware 硬件（`lspci` vendor `0x15ad`，内核走 `vmwgfx`），而 nix mesa ≥25 已移除 vmwgfx 用户态 DRI 驱动 → WebKit GPU 进程经 GBM 打开 renderD128 找不到匹配驱动 → EGL 初始化崩溃。**任何 WebKit 环境变量组合都无法绕过**（`WEBKIT_DISABLE_DMABUF_RENDERER` 在 2.52 仍存在但只影响渲染器选择，不解决 EGL display 创建失败）。
+
+**解法**（devShell 内启动前注入，全部必要）：
+
+```bash
+export WEBKIT_DISABLE_COMPOSITING_MODE=1        # 关 WebKit 合成（合成路径依赖 GL）
+export GSK_RENDERER=cairo                        # GTK 渲染器走 cairo
+export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe   # mesa 全软渲染
+export __EGL_VENDOR_LIBRARY_FILENAMES="$(nix build nixpkgs#mesa --print-out-paths --no-link)/share/glvnd/egl_vendor.d/50_mesa.json"  # glvnd 指到 nix mesa vendor（devShell 默认只有 mesa-libgbm 无头子集，缺 libEGL_mesa）
+export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1  # VM 内可接受；沙箱下 /nix 路径注入常失败
+```
+
+**SSH 会话跑 GUI 应用**：须注入 `GDK_BACKEND=x11 DISPLAY=:0 XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.*`（GNOME Wayland 会话经 Xwayland；auth 文件名随机，`ls` 取）。纯 Wayland 后端 + SSH 实测同样崩在 EGL（X11 路径才验证通过）。
+
+**验证成功判据**：`ps -e` 出现 **WebKitWebProcess 且稳定存活**（>10s）；失败时它 3s 内消失只剩 WebKitNetworkProcess。窗口渲染像素分析用 [script/shot-analyze.py](../script/shot-analyze.py)（亮色主题下内容区应 verdict=rendered：白底 + 文本行段，书架 2 本书 = 1 标题行 + 2×条目组共 8 行段）。
+
+### 截图取证
+
+- `gnome-screenshot` 须 `sudo apt install`（GNOME 41+ 的 org.gnome.Shell.Screenshot D-Bus 对非授权调用方 AccessDenied，gdbus 直调不可行）；SSH 会话带 `XDG_RUNTIME_DIR=/run/user/1000` 即可，无需 DISPLAY。
+- 系统自带 `xwd` 只能抓 Xwayland 客户端窗口（`xwd -id <window>`），非整屏替代品。
+- **agent 不能读图**（Read PNG 表面成功、媒体附件实际报错）→ 取证流水线 = gnome-screenshot 落盘 → [script/shot-analyze.py](../script/shot-analyze.py) 像素分析（窗口定位/主色/文本行段/verdict，`--json` 供 agent 消费）→ 用户肉眼终审。
+- 新分析需求（OCR / 双图 diff / 主题阈值等）**先扩展 shot-analyze.py 再执行**，禁止临时另写分析脚本——三次法则见 [script/AGENTS.md](../script/AGENTS.md)。
+
+### 环境诊断手法沉淀
+
+- `strace -f -e trace=openat` 抓 WebProcess 文件访问：本次定位到 glvnd 读系统 `/usr/share/glvnd/egl_vendor.d/50_mesa.json` → 找不到 `libEGL_mesa.so.0`（nix RPATH 链内无此库）→ 一击实锤根因。
+- ctypes 探针（`eglGetDisplay` + `eglInitialize`）测 EGL 平台：注意测试进程的 glibc 必须与目标库匹配（系统 glibc 进程加载 nix mesa 报 `GLIBC_ABI_GNU2_TLS not found`，不代表 nix 链接的应用内会失败）。
+- 变量名不要靠记忆猜：`strings libwebkit2gtk-4.1.so.0 | grep '^WEBKIT_[A-Z_]+$'` 直接枚举该构建支持的全部开关。
