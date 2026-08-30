@@ -82,6 +82,12 @@
 - **校验**：`cmd /c "git log -1 --format=%B"` 不得含 `?`（显示层乱码 ≠ 损坏）。
 - **详情**：cairn/powershell-encoding.md 坑8（2026-08-29 实证，commit afcec32 / d4dadea）。
 
+### 6.2 主题以 ASCII 大写字母开头（如 `D-16`）会被钩子拦截
+
+- **坑**：提交 `docs: D-16 补 …` 被 `check-commit-msg.py` 拒——钩子判定「主题英文首字母不大写」看的是**主题第一个字符是否为 ASCII 大写**（`subj[0].isascii() and isupper()`），中文/CJK 首字符不受影响，但 `D-16` 这类编号开头直接命中。
+- **对策**：主题用中文/小写开头，编号放后面，如 `docs: 补 D-16 …`；避免主题以 `A-Z`/`0-9` 之外的 ASCII 大写打头。
+- **详情**：script/check-commit-msg.py 的 `SUBJECT_RE` + 首字符校验（2026-08-30 实证，commit d792471）。
+
 ## 七、钩子安装
 
 一次性执行（本地配置，不入库，不自动推送）：
