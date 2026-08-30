@@ -1,7 +1,7 @@
 ---
 type: project_topic
 status: active
-summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案；D-09 已两端实测敲定（Linux 2026-08-27 / Windows 2026-08-30，碰撞 checkout 静默覆盖实证）；gix 0.87 API 实测要点（平台无关，M2/M4 复用）"
+summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案；D-09 已两端实测敲定（Linux 2026-08-27 / Windows 2026-08-30，碰撞 checkout 静默覆盖实证）；gix 0.87 API 实测要点（平台无关，M2/M4 复用，含 edit_reference reflog 身份坑）"
 tags: [mdor, gix, git, windows, autocrlf, versioning]
 contains: [lesson, decision, procedure]
 created: "2026-08-16"
@@ -52,6 +52,7 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 - **`config_snapshot_mut()` 只改进程内配置、不落盘**（doc 明示 in-memory only）：repo-local 配置（D-09 的 autocrlf/longpaths）持久化须走 `gix::config::File::from_path_no_includes(<git_dir>/config, Source::Local)` + `set_raw_value_by` + `write_to`。
 - **`gix::init(path)` 在 0.87 直接返回 `Repository`**（非 ThreadSafeRepository）；写对象用 `repo.write_blob`/`write_object`（返回 `Id`，`.detach()` 取 `ObjectId`）；引用操作走 `repo.edit_reference(RefEdit)`（`refs/mdor/versions/...` 自定义 ref 用此；`tag_reference` 只写 `refs/tags/` 不适合私有版本命名空间）。
 - **commit 对象类型**：`gix::objs::Commit`（`parents` 是 smallvec，`vec![id].into()` 即可）；签名 `gix::actor::Signature` + `gix::date::Time::now_local_or_utc()`；树条目须按 git 树序排序（目录名按「名 + /」参与字节比较）。
+- **`edit_reference` 的 reflog committer 依赖环境 git 身份（2026-08-30 CI 实跑抓到，产品级）**：`repo.edit_reference(edit)` 写 reflog 时从 git config 层级解析身份（`committer.name` → `user.name` → env，gix `identity.rs committer()`）；gix 对 `HEAD` **自动创建 reflog**（`should_autocreate_reflog`），无身份环境（CI runner / Android 真机，无 git 全局配置）`set_head` 即报 `MissingCommitter`。本机/VM 配了 `user.name` 被掩盖——**凡无 git 全局身份的环境都炸**。`refs/mdor/versions/*` 不在自动创建清单，故 `create_version_tag` 不触发。修复：`repo.edit_references_as([edit], Some(sig_ref))` 显式指定身份（`SignatureRef.time` 用 `Time::format_or_unix(Format::Raw)` 产出 owned String）；mdor 已钉 `MDOR_IDENTITY_NAME/EMAIL` 常量与 commit 签名同源 + 回归测试 `reflog_writes_mdor_identity`（481b8df）。**M2/M4 任何自建 ref 操作都走此模式**。
 
 ## 实践指南
 

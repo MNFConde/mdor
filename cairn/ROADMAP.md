@@ -1,6 +1,6 @@
 # mdor 路线图
 
-**当前焦点**：M1 已验收（workspace + mdor-core 骨架、gix 存储基座、AppService 薄门面 + 命令骨架、书架 UI 渲染真实数据，`cargo test -p mdor-core` 40 绿 + 门禁全绿；D-09 gix 三坑配置两端实测敲定——Linux 2026-08-27 / Windows 2026-08-30 六项回归测试）；下一里程碑 **M2**（StaticSiteSource 静态站递归镜像 + 自建链版本 tag + tree 级大小写碰撞检测落库 + httpmock 集成测试，fixtures/mdbook-static/）。里程碑详表见 `doc/project.md` §10。
+**当前焦点**：M1 已验收（workspace + mdor-core 骨架、gix 存储基座、AppService 薄门面 + 命令骨架、书架 UI 渲染真实数据，`cargo test -p mdor-core` 41 绿 + 门禁全绿 + **CI core-quality 实跑绿**；D-09 gix 三坑配置两端实测敲定——Linux 2026-08-27 / Windows 2026-08-30 六项回归测试；CI 首跑抓 MissingCommitter 产品级 bug 已修复）；下一里程碑 **M2**（StaticSiteSource 静态站递归镜像 + 自建链版本 tag + tree 级大小写碰撞检测落库 + httpmock 集成测试，fixtures/mdbook-static/）。里程碑详表见 `doc/project.md` §10。
 
 ## 里程碑
 

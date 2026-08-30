@@ -80,9 +80,11 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
             执行（Windows 宿主，M0 环境仍在）：✔ 六项全过，回归测试钉于 snapshot.rs #[cfg(windows)] 模块（commit 905666b，test 40 绿）
             结论：ignorecase 实证自动写入；长路径无碍；毒药环境实锤（裸 init 读 system autocrlf=true）、双施加点压成 false；碰撞 checkout 静默覆盖（树序后者胜出）→ tree 级检测前置是标注唯一可行位置；详见 decisions.md D-09 实测结论
             排期定案：检测+落库 M2（M4 复用）、标注渲染 M3
-        ☐ CI core-quality 实跑验证 @high
+        ✔ CI core-quality 实跑验证 @high @done(26-08-30 23:40)
             原因：feature/m1-core 已 push（26-08-30 确认 origin 同步）但工作流仅监听 master push/PR（feature 分支不触发）
-            执行：合并 feature/m1-core → master → push（D-14 直推保线性），观察 Actions core-quality 绿
+            执行：✔ 合并 feature/m1-core → master → push（D-14 ff-only 纯快进，28 提交），Actions core-quality 绿
+            注：首跑 test 步骤抓 2 失败（MissingCommitter）——gix edit_reference 的 reflog committer 依赖环境 git 身份，CI runner 无身份即爆，本机/VM 有全局身份被掩盖（Android 真机同炸的产品级 bug）；修复 481b8df（edit_references_as 显式 mdor 身份 + 回归测试 reflog_writes_mdor_identity）→ 重跑全绿（41 测试）；M1 验收全闭环
+            注：唯一 annotation = checkout@v4 Node 20 弃用（平台噪音），已升 v5 消除（5db3c45）
 
 ubuntu-dev VM 环境（D-16 备用，M0 桌面范围; 操作手册见 cairn/ubuntu-vm-setup.md）:
     依据：doc/env.md §1 开发环境拓扑 / decisions.md D-16；网络加速见 cairn/nix-mirror-proxy.md

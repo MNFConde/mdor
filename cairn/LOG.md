@@ -1,6 +1,15 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-30 · CI core-quality 首跑闭环：抓 MissingCommitter 产品级 bug → 修复 → 全绿（M1 验收全闭环）
+
+- M1 最后一项验收闭环：feature/m1-core → master ff-only 纯快进（28 提交，b5de42b）push 后 Actions core-quality 首跑 **test 步骤抓 2 失败**——`GitRef(...MissingCommitter)`：`edit_reference` 的 reflog committer 依赖环境 git 身份（`committer.name`→`user.name`→env），CI runner 无身份即爆；本机/VM 有全局身份被掩盖，**Android 真机同炸**（M6 才会暴露的产品级 bug，CI 提前抓到）。`refs/mdor/versions/*` 不在 reflog 自动创建清单故 tag 未触发。
+- 修复（481b8df）：`edit_references_as([edit], Some(sig_ref))` 显式指定 reflog 身份，与 commit 签名同源（`MDOR_IDENTITY_NAME/EMAIL` 常量共用）；新增回归测试 `reflog_writes_mdor_identity`（断言 `.git/logs/HEAD` 含 `mdor <mdor@localhost>`，有身份机器防回退）。重跑 CI 全绿（41 测试）。
+- 沉淀：[gix-windows-pitfalls.md](gix-windows-pitfalls.md) API 实测节新增「edit_reference reflog 身份坑」（**M2/M4 自建 ref 复用要点**）。
+- 附带：checkout@v4 → v5 消除 Node 20 弃用 annotation（5db3c45，唯一 warning 为平台噪音）。
+- 知识沉淀盘点：本会话知识点核对三份既有专题（gix-windows-pitfalls / cargo-audit-behavior / powershell-encoding），除上述 reflog 身份坑外无新增——PS 显示乱码≠损坏为既有坑 4/8 精确覆盖，audit 网络瞬断非稳定教训。
+- plan.todo「CI core-quality 实跑验证」勾选 @done(26-08-30 23:40)；M1 全量验收（含遗留块）至此全部闭环，下一里程碑 M2。
+- 门禁：fmt/clippy/test 41 绿/audit exit 0（本地 --no-fetch，advisory-db 网络瞬断）+ CI 实跑绿 + check-links.py 通过。
 ## 2026-08-30 · D-09 gix Windows 侧六项实测闭环 + 大小写碰撞静默覆盖实证 + 检测/标注排期定案
 
 - M1 遗留「D-09 gix Windows 侧实测」在 Windows 宿主闭环（NTFS + Git for Windows system autocrlf=true 毒药环境）：六项全过，回归测试钉于 `store/snapshot.rs` `#[cfg(windows)]` 模块（commit 905666b），`cargo test -p mdor-core` 40 绿（34+6），门禁 fmt/clippy/audit 全绿。ubuntu CI 编译期自动剔除。
