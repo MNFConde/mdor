@@ -18,6 +18,10 @@ use gix::refs::transaction::{Change, LogChange, PreviousValue, RefEdit};
 use crate::error::{Error, Result};
 use crate::versioning;
 
+/// mdor 自建提交/引用的固定身份（场景2 自建链；reflog committer 同源，D-01）。
+const MDOR_IDENTITY_NAME: &str = "mdor";
+const MDOR_IDENTITY_EMAIL: &str = "mdor@localhost";
+
 /// 每书一个 git 仓库（场景2 自建链 / 场景1 上游克隆，§7.2）。
 pub struct BookRepo {
     repo: gix::Repository,
@@ -86,8 +90,8 @@ impl BookRepo {
 
         let time = gix::date::Time::now_local_or_utc();
         let signature = gix::actor::Signature {
-            name: "mdor".into(),
-            email: "mdor@localhost".into(),
+            name: MDOR_IDENTITY_NAME.into(),
+            email: MDOR_IDENTITY_EMAIL.into(),
             time,
         };
         let parent_count = parents.len();
@@ -197,6 +201,12 @@ impl BookRepo {
     }
 
     /// 编辑单条引用（公共封装：HEAD 与版本 tag 共用）。
+    ///
+    /// reflog committer 显式指定为 mdor 身份（与 `commit_workdir` 的 commit 签名同源）：
+    /// gix 的 `edit_reference` 默认从 git config 层级（`committer.name` → `user.name` →
+    /// env）解析 reflog 身份，无身份环境（CI runner / Android 真机，无 git 全局配置）
+    /// 写 HEAD reflog 时报 `MissingCommitter`（2026-08-30 CI 实跑抓到；本机/VM 有
+    /// 全局身份故被掩盖）。显式指定使行为与环境解耦。
     fn edit_ref(&self, name: &str, new: Target, expected: PreviousValue) -> Result<()> {
         let edit = RefEdit {
             change: Change::Update {
@@ -209,7 +219,15 @@ impl BookRepo {
                 .map_err(|e| Error::Git(format!("无效引用名 {name}：{e}")))?,
             deref: false,
         };
-        self.repo.edit_reference(edit)?;
+        let time_raw = gix::date::Time::now_local_or_utc()
+            .format_or_unix(gix::date::time::Format::Raw)
+            .into_boxed_str();
+        let sig_ref = gix::actor::SignatureRef {
+            name: MDOR_IDENTITY_NAME.as_bytes().into(),
+            email: MDOR_IDENTITY_EMAIL.as_bytes().into(),
+            time: &time_raw,
+        };
+        self.repo.edit_references_as([edit], Some(sig_ref))?;
         Ok(())
     }
 }
@@ -486,6 +504,30 @@ mod tests {
         assert_eq!(object.kind, gix::objs::Kind::Blob);
         assert_eq!(object.data, crlf, "autocrlf=false 下工作区字节 ≡ blob 字节");
         assert_eq!(fs::read(dir.join("win.html")).unwrap(), crlf.to_vec());
+    }
+
+    /// reflog committer 显式为 mdor 身份（与 commit 签名同源），不依赖环境 git 身份。
+    /// CI runner（无 user.name/email）曾因 edit_reference 默认解析环境身份报
+    /// MissingCommitter（2026-08-30 CI 实跑）；Android 真机同属无身份环境，此为
+    /// 产品级修复。断言 reflog 内容 = mdor，在有身份的机器上亦可防回退成
+    /// edit_reference（那时 reflog 会写用户自己的名字）。
+    #[test]
+    fn reflog_writes_mdor_identity() {
+        let (dir, repo) = temp_repo("reflog_identity");
+        let id = repo
+            .commit_workdir(&files(&[("index.html", "A")]), "v1", vec![])
+            .unwrap();
+        repo.set_head(id).unwrap();
+
+        let log = fs::read_to_string(dir.join(".git/logs/HEAD")).expect("HEAD reflog 应存在");
+        assert!(
+            log.contains("mdor <mdor@localhost>"),
+            "reflog committer 应为 mdor 固定身份：{log}"
+        );
+        assert!(
+            !log.contains("committer"),
+            "reflog 不应含环境解析出的其他身份：{log}"
+        );
     }
 
     // ===== D-09 Windows 侧实测（plan.todo M1 遗留；decisions.md D-09 待实测项）=====
