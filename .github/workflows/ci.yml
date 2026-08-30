@@ -14,7 +14,7 @@ jobs:
   core-quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # 读取 rust-toolchain.toml 钉版 1.97.1；profile=minimal 不含 rustfmt/clippy，补 components
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
