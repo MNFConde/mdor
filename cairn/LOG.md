@@ -1,6 +1,13 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-30 · 环境侧 /etc/nixos home-manager 接线两坑修复（users 传路径 + extraSpecialArgs 包裹 inputs）
+
+- 环境侧 flake（/home/morr/nixos-config/default）`nix build` 连续两错：① `home-manager.users.morr = import ./home.nix { inherit inputs; }` 手动调用模块函数只给 `inputs` → `function ... called without required argument 'config'`；② 改传路径 `./home.nix` 后 `home-manager.extraSpecialArgs = inputs;` 摊平 flake inputs（specialArgs key = self/nixpkgs/charmbracelet-nur…），home.nix 声明 `{ inputs, ... }` 解析不到 → infinite recursion（栈内 `argument `inputs` is not externally provided, so querying `_module.args` instead`）。
+- 修复（官方最佳实践，home-manager manual NixOS module 节）：`home-manager.users.morr = ./home.nix;` + `home-manager.extraSpecialArgs = { inherit inputs; };`；仅改 flake.nix，home.nix 无它改（inputs 只在 imports 用）。
+- 诊断法沉淀：`nix eval --impure --expr` 最小 nixosSystem + 假 inputs 复现（摊平复现 / 包裹通过）；`--show-trace` + 读 `lib/modules.nix` `applyModuleArgs` 定位 fallback；root 构建 `$HOME not owned by you` 与 dirty tree 警告无害可忽略。
+- 沉淀：新建 [nixos-home-manager-flake.md](nixos-home-manager-flake.md)（`graduation_status: candidate`，跨项目可复用）。
+- 门禁：`check-links.py` 通过。
 
 ## 2026-08-30 · D-16 VM 基座复核（维持 ubuntu+nix）+ ubuntu-dev 装 opencode
 
