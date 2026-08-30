@@ -437,6 +437,7 @@
 | 状态 | 日期 | 规范位置 |
 |---|---|---|
 | 已决策 | 2026-08-24 | [env.md 开发环境拓扑](env.md#开发环境拓扑)、[cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)（安装坑） |
+| 已复核 | 2026-08-30 | 维持 ubuntu+nix，否决 [NixOS VM 复用作 VM 基座](#nixos-vm-复用作-vm-基座)（论证见下块） |
 
 **背景**：mdor 双目标为 Windows 桌面（开发端）+ Android；宿主机资源有限（6C12T / 15G 内存），需同时覆盖三件事——Linux 环境下的可复现开发、安卓产物验证、dioxus Linux 桌面 GUI 调试。候选路线：全部塞进一个 VirtualBox Ubuntu VM、WSL 为主 VM 为辅、全宿主机原生。
 
@@ -453,6 +454,17 @@
 >
 > - **VM 内跑 Android 模拟器（AVD）**：VirtualBox 嵌套虚拟化下 AVD 自身需要的硬件加速无法满足，极慢且经常起不来——模拟器必须放有完整硬件加速的宿主机，VM 只做编译机
 > - **Ubuntu VM 作为唯一日常环境**：常驻分配 6G 内存挤压宿主机；桌面 GUI 对「SSH 命令行为主」的工作流是纯开销；且 nixos-wsl 已就绪、启动秒级、内存按需回收，同等能力下开销全面更低
+
+#### NixOS VM 复用作 VM 基座
+> [!CAUTION] 【已否决】 NixOS VM 复用作 VM 基座
+> 原因：详见下列各项
+>
+> 曾考虑把备用 VM 从「ubuntu+nix」换成 NixOS，以一步迁移 nixos-wsl 的 `/etc/nixos` 声明式系统配置，避免「apt 底座 + Nix 工具」双套装法。结论：不换。
+>
+> - **dev 层本已单源，换基座不改这一点**：仓库 `flake.nix` 同时喂 WSL 与 VM 的 devShell，两边零差别；ubuntu+nix 已满足「环境复现单源」，换 NixOS 只为把**系统层**（内核/服务/桌面/USB/GA）也声明式化
+> - **ubuntu+nix 双源风险**：apt 管底座（内核/驱动/sshd）+ Nix 管工具，同一软件可能两版并存（apt 版 vs flake 钉版）；devShell 内靠 PATH 前缀 + PKG_CONFIG_PATH + 构建产物 rpath 遮蔽、用 flake 钉版；shell 外回落 apt 版；绝对路径调用（`/usr/bin/xx`）绕过遮蔽
+> - **遮蔽即钉版能力**：`nix develop` 内 PATH 置顶 store 路径、链接期 PKG_CONFIG_PATH 指 store、产物 rpath 直指 store，等效声明式钉版——维持 ubuntu+nix 仍具备钉版能力，只是系统层不声明、靠「apt 只装底座」约定兜底
+> - **不换的两条主因**：① **兼容问题**——NixOS 上 VirtualBox Guest Additions 须对 store 内内核编译 DKMS 模块、版本匹配毛刺，而 GA 是 VM 核心用途（GUI 调试 / USB 直通）的前提；② **已装好没必要重来**——ubuntu-dev 24.04.4 无人值守装好 + 阶段 0/1 已闭环（Guest Additions / sshd / Nix / devShell 可用），重装沉没成本与备用环境收益不匹配
 
 **依据**：
 

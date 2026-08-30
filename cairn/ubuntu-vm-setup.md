@@ -116,6 +116,12 @@ echo 'eval "$(starship init bash)"' >> ~/.bashrc
 nix profile install nixpkgs#opencode   # 若 nix search 无该 attr，官方脚本兜底: curl -fsSL https://opencode.ai/install | bash
 opencode auth login
 ```
+**安装实测补充（26-08-30）**：
+
+- `nix profile install` 是新版 Nix 中 `add` 的 deprecated 别名——`warning: 'install' is a deprecated alias for 'add'` 属正常、非错误，装成功即入 profile；新写法用 `nix profile add`。
+- `nix search` 会命中多个同名包，按 **attrpath** 区分：`nixpkgs#opencode` 只解析顶层 `opencode`（1.18.21），**不会**装到 `haskellPackages.opencode` 或仅描述含 opencode 的 `cc-switch`；要装嵌套包须写全路径（如 `nixpkgs#haskellPackages.opencode`）。
+- opencode **无 apt 源**；官方安装方法仅 curl / npm / pnpm / bun / brew（见 `opencode upgrade --help` 的 `--method` 枚举）。
+
 **关键使用姿势**：opencode 的 bash 工具是非交互 shell，direnv 不生效——须在**已加载 devShell 的交互终端**里启动 opencode（进程环境继承），agent 才能吃到 flake 工具链（详见 [nix-project-flake.md](nix-project-flake.md) 坑 5）。skills 经 2.2 部署到 `~/.config/opencode/skills/`，重启会话生效。
 
 ## 阶段 4：验收 + 快照

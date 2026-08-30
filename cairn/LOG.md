@@ -2,6 +2,14 @@
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
 
+## 2026-08-30 · D-16 VM 基座复核（维持 ubuntu+nix）+ ubuntu-dev 装 opencode
+
+- 复核「备用 VM 是否换 NixOS 以一步迁移 nixos-wsl 声明式配置」：dev 层 `flake.nix` 本就 WSL/VM 两侧单源零差别；ubuntu+nix 双源（apt 底座 + Nix 工具）风险由「遮蔽即钉版」（devShell 内 PATH 置顶 store + PKG_CONFIG_PATH + rpath）兜底；不换两主因 = ① NixOS 上 VirtualBox Guest Additions 兼容风险（GA 是 GUI 调试/USB 直通前提）② ubuntu-dev 已装好没必要重来。
+- 决策：维持 ubuntu+nix；D-16 补【已否决】[NixOS VM 复用作 VM 基座](../doc/decisions.md#nixos-vm-复用作-vm-基座)块 + 状态表加「已复核 2026-08-30」行。
+- ubuntu-dev 阶段 3：`nix profile install nixpkgs#opencode` 已装 **1.18.21**；`install` 为 `add` 的 deprecated 别名（warning 正常）、`nixpkgs#opencode` 按 attrpath 定顶层包不与 `haskellPackages.opencode`/`cc-switch` 混淆、opencode 无 apt 源——坑注沉淀于 [ubuntu-vm-setup.md](ubuntu-vm-setup.md) 阶段 3。
+- 待办：auth login / skills deploy / 阶段 4 验收 + 快照，随 VM 环境收尾一并更新 plan.todo。
+- 门禁：check-links.py 通过。
+
 ## 2026-08-29 · PS 5.1 stdin 管道中文损坏坑补充 + commit 消息修复
 
 - 提交 docs 批次时，`@'…'@ | git commit -F -` 在 PS 5.1 下把提交信息中文字符全写成字面 `?`（0x3F）——根因是管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），与已知 stdout GBK 解码坑（powershell-encoding 坑7）同族反向；`cmd /c` 直读原始字节仍 `?` 证实字节级损坏、非显示伪影。
