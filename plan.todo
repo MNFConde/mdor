@@ -74,10 +74,12 @@ M1 workspace + mdor-core 骨架 + 书架 UI:
                     ✔ gnome-screenshot 截图取证（sudo apt install 后自助，/tmp/opencode/mdor-final.png）→ 用户 VirtualBox 窗口肉眼复核通过 @done(26-08-30 18:00)
                     注：WebKit EGL 崩溃坑与修复环境变量组合沉淀于 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」+ env.md §6 排查表
                 ✔ 阶段4 收尾：env.md 拓扑补 VM IP 事实（✔ 已补 NAT 实测）；按文档跑「装完快照」（env-ready）；cairn LOG @high @done(26-08-30 19:30)
-        ☐ D-09 gix Windows 侧五项实测 @high
+        ✔ D-09 gix Windows 侧六项实测 @high @done(26-08-30 22:00)
             原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
-            项：NTFS ignorecase 自动探测 / >260 路径 checkout / 模拟 system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测 fixtures 验证
-            执行（Windows 宿主，M0 环境仍在）：见 doc/decisions.md D-09 待实测项
+            项：NTFS ignorecase 自动探测 / >260 路径 checkout / system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测前提 / 同异 blob oid 判定
+            执行（Windows 宿主，M0 环境仍在）：✔ 六项全过，回归测试钉于 snapshot.rs #[cfg(windows)] 模块（commit 905666b，test 40 绿）
+            结论：ignorecase 实证自动写入；长路径无碍；毒药环境实锤（裸 init 读 system autocrlf=true）、双施加点压成 false；碰撞 checkout 静默覆盖（树序后者胜出）→ tree 级检测前置是标注唯一可行位置；详见 decisions.md D-09 实测结论
+            排期定案：检测+落库 M2（M4 复用）、标注渲染 M3
         ☐ CI core-quality 实跑验证 @high
             原因：feature/m1-core 已 push（26-08-30 确认 origin 同步）但工作流仅监听 master push/PR（feature 分支不触发）
             执行：合并 feature/m1-core → master → push（D-14 直推保线性），观察 Actions core-quality 绿
@@ -101,6 +103,7 @@ M2 StaticSiteSource 静态站镜像:
         ☐ source/static_site.rs：递归镜像同源页面/资源 + 抽取 <main> + 构建 TOC @critical
         ☐ 镜像边界：限同源 + 深度/大小上限（防越界爬取，§11）
         ☐ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）
+        ☐ tree 级大小写碰撞检测（同/异 blob oid 判定，M1 原语复用，D-09 定案 3）+ SnapshotMeta 碰撞字段落库 @high（标注渲染留 M3，26-08-30 定案）
     测试与验收:
         ☐ httpmock 集成测试（fixtures/mdbook-static/）
         ☐ 真实 mdBook 站点离线镜像验收（如 doc.rust-lang.org/book）

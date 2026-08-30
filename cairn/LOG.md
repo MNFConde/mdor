@@ -1,6 +1,14 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-30 · D-09 gix Windows 侧六项实测闭环 + 大小写碰撞静默覆盖实证 + 检测/标注排期定案
+
+- M1 遗留「D-09 gix Windows 侧实测」在 Windows 宿主闭环（NTFS + Git for Windows system autocrlf=true 毒药环境）：六项全过，回归测试钉于 `store/snapshot.rs` `#[cfg(windows)]` 模块（commit 905666b），`cargo test -p mdor-core` 40 绿（34+6），门禁 fmt/clippy/audit 全绿。ubuntu CI 编译期自动剔除。
+- 关键实证：① 裸 init 探针证实 gix 读 system 级配置（helix #6467 同款毒药环境本机即有），mdor 双施加点压成 false + CRLF 字节端到端保真；② ignorecase 自动探测实证（init 写 `core.ignorecase=true`）；③ ~350 字符长路径 checkout 无碍；④ **大小写碰撞 checkout 静默覆盖**（无告警，树序后者胜出、前者字节丢失）——gix 不提供知情信号，tree 级检测前置（D-09 定案 3）是实现「标注」的唯一可行位置。
+- 排期定案：定案 3 拆三件——tree 级检测 + SnapshotMeta 碰撞字段落库归 **M2**（M4 复用、报错选项 M2 接线）；归一 + 标注渲染归 **M3**（Windows 单渲染=工作区直读 D-10 自然退化，标注不依赖 blob 直接读）。plan.todo M2 加检测任务。
+- 沉淀：[gix-windows-pitfalls.md](gix-windows-pitfalls.md) 开放问题节重写为实测结论 + 排期注记；decisions.md D-09 状态→已实测 + 实测结论六项 + 排期定案；diff.md §4.4/§4.5 收敛；project.md §11 补排期指针；ROADMAP 当前焦点 40 绿 + 开放问题清理。
+- 待办：plan.todo「CI core-quality 实跑验证」随 feature/m1-core → master 合并执行（ff-only，D-14 直推保线性），Actions core-quality 绿后勾选。
+- 门禁：fmt/clippy/test 40 绿/audit exit 0 + check-links.py 通过。
 ## 2026-08-30 · M1 书架视觉验收闭环（ubuntu-dev VM 首次 GUI 调试）+ WebKit EGL 崩溃根因沉淀
 
 - M1 遗留 @critical「书架弹窗视觉确认」在 ubuntu-dev VM 闭环：SSH 带 X11 env 起 `cargo run`（Xwayland）→ seed 2 本书渲染（像素分析 8 文本行段 = 1 标题 + 2 条目组）→ `gnome-screenshot` 取证 → 用户 VirtualBox 肉眼复核通过。质量门禁 VM 实跑全绿（fmt/clippy/test 34/audit exit 0）。

@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案与待 M1 实测项；gix 0.87 API 实测要点（平台无关，M2/M4 复用）"
+summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案；D-09 已两端实测敲定（Linux 2026-08-27 / Windows 2026-08-30，碰撞 checkout 静默覆盖实证）；gix 0.87 API 实测要点（平台无关，M2/M4 复用）"
 tags: [mdor, gix, git, windows, autocrlf, versioning]
-contains: [lesson, decision, procedure, open_question]
+contains: [lesson, decision, procedure]
 created: "2026-08-16"
-updated: "2026-08-21"
+updated: "2026-08-30"
 related: [diff.md, decisions.md]
 authoring_mode: ai_generated
 ---
@@ -19,7 +19,7 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 
 1. **三坑性质不同，不能一刀切**：
    - **autocrlf**：gix 默认遵循配置（含 system/global），会真做 LF↔CRLF 转换——**必须**显式压为 `false`，有明确手段。
-   - **ignorecase**：clone/init 时经 `create::Options::fs_capabilities` 探测文件系统并写入 git-config（NTFS 上大概率自动 `core.ignorecase=true`）；只能让索引比较大小写不敏感，**救不了物理冲突**。
+   - **ignorecase**：clone/init 时经 `create::Options::fs_capabilities` 探测文件系统并写入 git-config（NTFS 上**已实证**自动 `core.ignorecase=true`）；只能让索引比较大小写不敏感，**救不了物理冲突**。
    - **longpaths**：260 限制是 Win32 API 限制而非 NTFS；gix 走 Rust `std::fs`（宽字符 API + 超长路径自动 `\\?\`），大概率不需要；设它仅为 git CLI 互操作 / 防御。
 2. **全局约定是毒药（关键风险）**：gix 会读到用户机器全局配置——Git for Windows 常写 system 级 `core.autocrlf=true`（实锤案例 helix #6467）。mdor 要求工作区字节 = 上游字节，任何 CRLF 转换都破坏它且与 Android 行为不一致。不能靠「用户改全局配置」这类约定，必须由 mdor 主动在更高优先级压掉。
 3. **变更检测别用 gix status 的 stat 快路径**：`lstat()` 的 size/mtime 对比被 mdor 全量重写流击穿——每次 fetch 全量重写工作区 → 每个文件 mtime 都是新的 → 永远落慢路径（全量读盘 + 逐文件 hash），且依赖写盘时序与 stat 缓存边缘情况。
@@ -32,7 +32,7 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 
 ## 当前结论
 
-- **配置施加点（A + B 叠加，D-09，待 M1 实测后敲定）**：
+- **配置施加点（A + B 叠加，D-09，已经 M1 两端实测敲定）**：
   1. `snapshot.rs` 的 clone/init 路径：成功后、checkout 前执行 `apply_windows_safety_config()`，写 repo-local：`core.autocrlf=false`（必须）、`core.longpaths=true`（防御 + git CLI 互操作）；`core.ignorecase` 交给 gix 探测。
   2. AppService 统一仓库打开入口：`config_overrides` 兜底 `core.autocrlf=false`，保证进程内行为确定。
 - **变更检测定案（D-08）**：检测层 = 原始字节 hash（下载字节 vs 上个 commit blob hash，前提 autocrlf=false）；展示层 = gix diff（树对象级，与过滤器无关）。分工：hash 回答「内容变没变」，gix diff 回答「变了什么」。**gix status 检测层被否决**（接受字节分叉 → 跨平台同步存储不可用）。
@@ -41,8 +41,9 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 
 ## 开放问题
 
-- **M1 Linux 侧已实测**（2026-08-27，切片3）：repo-local `core.autocrlf=false` + `core.longpaths=true` 已落盘、open 入口 `config_overrides` 兜底、CRLF 字节保真单测通过（autocrlf=false 下磁盘字节 ≡ blob 字节）。
-- **Windows 侧遗留实测项**（需宿主机，D-09）：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
+- **D-09 两端实测已全部完成**（Linux 2026-08-27 切片3 / Windows 2026-08-30 六项回归测试，commit 905666b），无遗留实测项。完整结论见 D-09「实测结论」。
+- **Windows 实测关键发现**（2026-08-30）：大小写碰撞 checkout **静默覆盖**（无告警无报错，树序后者胜出、前者字节丢失）——gix 不提供任何知情信号，**tree 级检测前置（D-09 定案 3）是实现「标注」的唯一可行位置**，异 blob 未检测即 checkout = 内容静默丢失。「树序后者胜出」是观察到的实现行为而非 gix 承诺语义，已钉为回归断言（`case_collision_checkout_overwrites_silently`）；实现标注时以 checkout 后实际物理内容为准，勿依赖该顺序。
+- **排期定案（2026-08-30）**：定案 3 拆三件——① tree 级检测 + ② 检测结果落库（`SnapshotMeta` 增碰撞字段）归 **M2**（M4 GitHubSource 复用同一检测函数；报错选项 M2 接线）；③ 归一 + 标注渲染归 **M3**（「Windows 单渲染+标注」= 工作区直读 D-10 自然退化 + 标注层，标注不依赖 blob 直接读；Android 物理两文件自然双渲染，M6 验证）。
 
 ## gix API 实测（0.87，平台无关，M2/M4 复用）
 

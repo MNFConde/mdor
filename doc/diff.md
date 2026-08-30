@@ -405,7 +405,7 @@ Rust 代码（Path / fs 操作）
 ### 4.4 对 mdor 的落地影响
 
 1. 原子写统一封装为 `write_json_atomic`（`store/util.rs`），core 内复用，两端一致。
-2. gix 仓库在 Windows 上的坑：长路径、大小写、autocrlf——主要在 checkout/clone 时触发，需在 gix 配置侧规避（机制梳理与候选方向见 [§4.5](#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) / [D-09](decisions.md#d-09-gix-三坑配置规避)，策略待 M1 实测后敲定）。
+2. gix 仓库在 Windows 上的坑：长路径、大小写、autocrlf——主要在 checkout/clone 时触发，需在 gix 配置侧规避（机制梳理与候选方向见 [§4.5](#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) / [D-09](decisions.md#d-09-gix-三坑配置规避)；策略经 M1 两端实测敲定，见 [D-09](decisions.md#d-09-gix-三坑配置规避)）。
 3. fixtures / 测试样例路径用 `Path` 抽象，避免硬编码分隔符。
 
 ### 4.5 gix 三坑的配置规避：机制梳理与待定（讨论记录 2026-08-09）
@@ -416,13 +416,13 @@ Rust 代码（Path / fs 操作）
 
 - **配置机制**：git 配置分层 `system < global < local < worktree < env`；gix 提供 `Repository::config_mut()`（落盘 local）、`gix::open::Options::config_overrides`（纯内存）、`gix::config::tree`（类型化 key）三个程序化入口；checkout 行为由 checkout options 驱动（gix-filter 做 CRLF 转换）。**关键风险——全局约定是毒药**：gix 会读到 Git for Windows 的 system 级 `core.autocrlf=true`（实锤 helix #6467），必须由 mdor 在更高优先级压掉。
 - **三坑性质**：autocrlf 必须显式压 false（有明确手段）；ignorecase 只能让索引比较按大小写不敏感，**救不了**物理冲突；longpaths 大概率不需要（gix 走 Rust `std::fs` 自动长路径）。
-- **推荐方向（待 M1 实测）**：A + B 叠加——snapshot.rs clone/init 后写 repo-local（`core.autocrlf=false` 必须、`core.longpaths=true` 防御）+ AppService 统一打开入口 `config_overrides` 兜底。
+- **推荐方向（已经 M1 两端实测敲定，2026-08-30）**：A + B 叠加——snapshot.rs clone/init 后写 repo-local（`core.autocrlf=false` 必须、`core.longpaths=true` 防御）+ AppService 统一打开入口 `config_overrides` 兜底。
 - **大小写冲突定案**：tree 级检测，同 blob 归一 / 异 blob 双渲染+标注（默认）/ 报错；Windows 退化为"单渲染+标注"；跨平台真双渲染绑定 blob 直接读能力（[D-10](decisions.md#d-10-资源读取通道)，v1 不引入）。
 - **autocrlf 深究**：git 平时不"误判"靠对称过滤器（smudge/clean 都归一化到 LF）；mdor 消费**工作区原始字节** + 两平台配置注定不同 → 把隐形的换行转换变成持续可见分歧；`core.autocrlf=false` 使 磁盘≡blob≡两端。
 - **变更检测定案**：检测层用原始字节 hash（前提 autocrlf=false），展示层用 gix diff；不用 gix status（stat 快路径被全量重写流击穿）。
 - **待 M1 实测项**：见 [D-09](decisions.md#d-09-gix-三坑配置规避)。
 
-**未决状态**：本节为讨论记录；M1 实测后更新 [§4.3](#43-windows-特有坑android-没有) / [§4.4](#44-对-mdor-的落地影响) 敲定策略。**M1 Linux 侧实测（2026-08-27，切片3）**：repo-local 写 `core.autocrlf=false` + `core.longpaths=true` 已落盘并经单测验证字节保真（CRLF 文件原样入 blob，工作区字节 ≡ blob 字节）；open 统一入口已配 `config_overrides(["core.autocrlf=false"])` 兜底。**Windows 侧遗留**（需宿主机，M1 未做）：NTFS ignorecase 自动探测、超 260 路径 checkout、模拟 Git for Windows system autocrlf=true 时压掉、大小写碰撞 checkout 行为、tree 级冲突检测在 fixtures 验证。
+**未决状态**：本节为讨论记录；M1 实测后更新 [§4.3](#43-windows-特有坑android-没有) / [§4.4](#44-对-mdor-的落地影响) 敲定策略。**M1 Linux 侧实测（2026-08-27，切片3）**：repo-local 写 `core.autocrlf=false` + `core.longpaths=true` 已落盘并经单测验证字节保真（CRLF 文件原样入 blob，工作区字节 ≡ blob 字节）；open 统一入口已配 `config_overrides(["core.autocrlf=false"])` 兜底。**M1 Windows 侧实测（2026-08-30，宿主 NTFS + system autocrlf=true 毒药环境，六项回归测试钉于 `store/snapshot.rs`，commit 905666b）**：ignorecase 自动探测实证（init 写 `core.ignorecase=true`，safety config 重写后保留）；~350 字符长路径 checkout 字节保真；裸 init 探针实证 gix 读 system 配置、双施加点压成 false；**大小写碰撞 checkout 静默覆盖**（无告警，树序后者胜出）——tree 级检测前置是实现「标注」的唯一可行位置；tree 两条目共存 + 同/异 blob oid 判定原语均可行。完整结论与 M2/M3 排期定案见 [D-09](decisions.md#d-09-gix-三坑配置规避)。
 
 ## 5. 安全 / 明文策略（app 层）
 

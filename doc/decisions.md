@@ -18,7 +18,7 @@
 | [D-06](#d-06-静态资源分流) | App 静态资源分流；阅读页样式内嵌定案（方案 1）；主题热更新走方案 2+兼容层（后续） | 已决策 | [diff.md §2.3](diff.md#23-逐维度对比) |
 | [D-07](#d-07-薄门面与命令化) | 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [project.md §6.9](project.md#69-服务编排薄门面-按需命令化) |
 | [D-08](#d-08-变更检测) | 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
-| [D-09](#d-09-gix-三坑配置规避) | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
+| [D-09](#d-09-gix-三坑配置规避) | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 已实测（2026-08-27 Linux / 2026-08-30 Windows） | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
 | [D-10](#d-10-资源读取通道) | 资源读取通道可插拔：工作区直读默认，blob 直接读可选（互斥） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
 | [D-11](#d-11-tls-与加密选型) | TLS：rustls + platform-verifier + ring，gix 用 reqwest 后端 | 已决策 | [diff.md §1.6](diff.md#16-端到端对比与推荐方案) |
 | [D-12](#d-12-依赖与安全审计) | tokio + 依赖版本统一 + `cargo audit`（不引入 cargo deny） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
@@ -251,11 +251,11 @@
 
 | 状态 | 日期 | 规范位置 |
 |---|---|---|
-| 部分实测（Linux 侧通过，Windows 侧遗留） | 2026-08-27 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
+| 已实测（Linux 侧 2026-08-27 / Windows 侧 2026-08-30，全部通过） | 2026-08-27 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
 
 **背景**：§4.3 三个 Windows 特有坑（长路径 / 大小写 / autocrlf）需在 gix 配置侧规避，但 gix 是库而非 CLI、没有 `git config` 命令，且三坑性质不同不能一刀切。**关键风险——全局约定是毒药**：gix 会读到用户机器全局配置（Git for Windows 常写 system 级 `core.autocrlf=true`，实锤案例 helix #6467），mdor 要求工作区字节 = 上游字节，任何 CRLF 转换都破坏它，且与 Android 行为不一致——不能靠"用户改全局配置"这类约定，必须由 mdor 主动在更高优先级压掉。
 
-**决策（推荐方向，待 M1 实测后敲定）**：A + B 叠加收敛到**两个配置施加点**，另有大小写冲突处理定案：
+**决策（A + B 叠加收敛到两个配置施加点，2026-08-30 两端实测敲定）**：另有大小写冲突处理定案：
 
 1. **snapshot.rs 的 clone/init 路径**：成功后、checkout 前执行 `apply_windows_safety_config()`，写 repo-local：`core.autocrlf=false`（必须）、`core.longpaths=true`（防御 + git CLI 互操作）；`core.ignorecase` 交给 gix 探测（Windows 上确认自动为 true）。
 2. **AppService 统一仓库打开入口**：`config_overrides` 兜底 `core.autocrlf=false`，保证进程内行为确定。
@@ -269,7 +269,16 @@
 | ignorecase | clone/init 时经 `create::Options::fs_capabilities` 探测文件系统并写入 git-config（NTFS 上大概率自动 `core.ignorecase=true`） | 只能让索引比较按大小写不敏感；**救不了**物理冲突 |
 | longpaths | 260 限制是 Win32 API 限制而非 NTFS；gix 走 Rust `std::fs`（宽字符 API + 超长路径自动 `\\?\`） | 大概率**不需要**；设它仅为 git CLI 互操作 / 防御 |
 
-**待 M1 实测项**：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为（告警 / 静默覆盖）；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
+**实测结论（Windows 侧 2026-08-30，宿主 NTFS + Git for Windows system `autocrlf=true` 毒药环境 + gix 0.87.1；六项回归测试钉于 `store/snapshot.rs` `#[cfg(windows)]` 模块，commit 905666b）**：
+
+1. **ignorecase 自动探测**：gix `init` 经 `gix_fs::Capabilities::probe` 探测文件系统并写入 `core.ignorecase=true`（NTFS 实证）；经 `apply_safety_config` 重写 repo-local config 后保留。
+2. **>260 长路径**：约 350 字符路径 commit + checkout 字节保真，无需干预（gix 走 Rust `std::fs` 自动长路径，与预判一致）。
+3. **system autocrlf=true 压盖**：裸 init 探针实证 gix 确实读到 system 级配置（`autocrlf=Some(true)`，helix #6467 同款毒药环境本机即有）；mdor 双施加点叠加后有效值 `Some(false)`，CRLF 字节端到端保真。
+4. **大小写碰撞 checkout 静默覆盖**：commit 成功（对象层两条目共存）、checkout **无告警无报错**，NTFS 物理单文件，内容 = 树序后者（`readme.html`）——物理退化与定案一致，且证实 gix 不提供任何知情信号，**tree 级检测前置（定案 3）是实现「标注」的唯一可行位置，异 blob 未检测即 checkout = 内容静默丢失**。「树序后者胜出」是观察到的实现行为而非 gix 承诺的语义，已钉为回归断言（gix 行为变化即失败提示）；将来实现标注时以 checkout 后实际物理内容为准，勿依赖该顺序。
+5. **tree 级两条目共存**：对象层恒两条目（同/异字节均可），定案 3 的检测前提成立。
+6. **同/异 blob 判定**：同字节→oid 相等、异字节→oid 不等，判定原语可行（M2 直接复用）。
+
+**排期定案（2026-08-30）**：定案 3 拆三件——① tree 级检测（平台无关，fetch→commit 后扫 tree 比 oid）+ ② 检测结果落库（`SnapshotMeta` 增碰撞字段）归 **M2**（第一个真实 fetch 里程碑，M4 GitHubSource 复用同一检测函数；报错选项作为检测消费方在 M2 接线）；③ 归一 + 标注渲染归 **M3**（渲染行为；「Windows 单渲染+标注」= 工作区直读 D-10 自然退化 + 标注层，标注不依赖 blob 直接读；Android 物理两文件自然双渲染，M6 验证）。
 
 **影响**：autocrlf=false 使"磁盘字节 ≡ blob 字节 ≡ 两端字节"，把 gix 当字节透明存储用。
 
