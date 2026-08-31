@@ -1,3 +1,5 @@
+//! 目录模型（§4/§5）：TOC 章节树条目。
+
 use serde::{Deserialize, Serialize};
 
 /// TOC 章节条目（§4 `FetchResult.toc`；也存于 `.mdor/versions/<sha>.json`）。

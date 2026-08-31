@@ -1,3 +1,5 @@
+//! path 迁移策略（§8.1 v1 默认）：按章节路径映射，消失章节回退相邻。
+
 use crate::error::{Error, Result};
 use crate::migration::PositionMigrator;
 use crate::model::position::{MigrateStrategy, MigratedPosition, ReadingPosition};

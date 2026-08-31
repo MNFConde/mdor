@@ -1,3 +1,5 @@
+//! 书架元数据存取（§9）：`<bookstore>/library.json`。
+
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -52,14 +54,8 @@ mod tests {
     use super::*;
     use crate::model::book::tests::sample_book;
     use crate::source::SourceKind;
+    use crate::test_support::temp_dir;
     use std::fs;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdor-test-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("创建测试临时目录");
-        dir
-    }
 
     #[test]
     fn save_then_load_roundtrip() {

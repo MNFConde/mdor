@@ -1,3 +1,5 @@
+//! 版本快照模型（§5）：一次获取的内容快照及其元数据。
+
 use std::path::PathBuf;
 
 use crate::model::toc::TocEntry;

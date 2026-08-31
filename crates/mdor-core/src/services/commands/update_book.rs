@@ -1,3 +1,5 @@
+//! 更新书籍命令（M2 落地真实管线，当前为占位实现）。
+
 use crate::error::{Error, Result};
 use crate::services::AppContext;
 use crate::services::commands::{Command, Progress};

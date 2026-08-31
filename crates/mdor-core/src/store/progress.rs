@@ -1,3 +1,5 @@
+//! 阅读进度存取（§9）：`<bookstore>/progress.json`。
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -52,14 +54,8 @@ impl ProgressStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::temp_dir;
     use std::fs;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdor-test-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("创建测试临时目录");
-        dir
-    }
 
     fn sample_position(book_id: &str) -> ReadingPosition {
         ReadingPosition {

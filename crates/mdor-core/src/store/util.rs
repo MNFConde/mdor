@@ -1,3 +1,5 @@
+//! 元数据存取原语（§9）：原子写 JSON / 上限读 JSON / 持久性分层（D-02、D-03）。
+
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -93,14 +95,8 @@ fn tmp_path(path: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::temp_dir;
     use std::collections::HashMap;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdor-test-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("创建测试临时目录");
-        dir
-    }
 
     #[test]
     fn write_then_read_roundtrip() {

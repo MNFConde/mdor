@@ -1,3 +1,5 @@
+//! 文档来源抽象（§4）：来源类型、适配器 trait 与注册表。
+
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -5,11 +7,14 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::model::toc::TocEntry;
 
+/// 文档来源类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceKind {
-    GitForge,   // github/gitee/gitlab 等
-    StaticSite, // 静态网站（html、md、pdf 等）
+    /// git 托管平台（github/gitee/gitlab 等）。
+    GitForge,
+    /// 静态网站（html、md、pdf 等）。
+    StaticSite,
 }
 
 /// 一次获取的内容快照（§4）：书籍结构与版本标识，供添加/更新流程消费。

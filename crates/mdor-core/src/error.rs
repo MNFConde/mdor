@@ -1,3 +1,5 @@
+//! 统一错误类型：单一 `Error` 枚举贯穿全部模块，变体随用随建（不一次建全）。
+
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -86,6 +88,9 @@ pub enum Error {
     /// 其他 git 操作失败（无专门变体时兜底）。
     #[error("git 操作失败：{0}")]
     Git(String),
+    /// 命令队列已关闭（接收端已退出，入队失败）。
+    #[error("命令队列已关闭：{0}")]
+    QueueClosed(String),
     /// 实体不存在（如书架中查不到 book_id）。
     #[error("未找到：{0}")]
     NotFound(String),

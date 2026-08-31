@@ -1,3 +1,5 @@
+//! 书籍元数据模型（library.json 单条记录）。
+
 use crate::source::SourceKind;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

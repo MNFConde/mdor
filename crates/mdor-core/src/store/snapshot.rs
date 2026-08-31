@@ -339,12 +339,11 @@ fn remove_untracked_files(workdir: &Path, keep: &HashSet<PathBuf>) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::temp_dir;
     use std::fs;
 
     fn temp_repo(name: &str) -> (PathBuf, BookRepo) {
-        let dir = std::env::temp_dir().join(format!("mdor-test-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("创建测试临时目录");
+        let dir = temp_dir(name);
         let repo = BookRepo::init(&dir).expect("init");
         (dir, repo)
     }

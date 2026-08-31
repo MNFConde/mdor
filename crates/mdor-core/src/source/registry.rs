@@ -1,3 +1,5 @@
+//! 来源适配器注册表（§6.2）：detect 链式探测。
+
 use crate::source::SourceAdapter;
 
 /// 输入适配器注册表（§6.2）：持有全部已注册适配器，`detect` 依次询问。

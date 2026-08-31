@@ -87,7 +87,7 @@ impl CommandQueue {
     pub fn enqueue(&self, cmd: Box<dyn Command>) -> Result<()> {
         self.tx
             .send(cmd)
-            .map_err(|e| Error::Git(format!("命令队列已关闭：{e}")))?;
+            .map_err(|e| Error::QueueClosed(e.to_string()))?;
         Ok(())
     }
 }

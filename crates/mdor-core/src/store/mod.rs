@@ -91,14 +91,8 @@ mod tests {
     use super::*;
     use crate::model::book::tests::sample_book;
     use crate::store::library::Library;
+    use crate::test_support::temp_dir;
     use std::fs;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdor-test-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("创建测试临时目录");
-        dir
-    }
 
     fn mk_orphan(books_root: &Path, id: &str) {
         fs::create_dir_all(books_root.join(id).join("site")).unwrap();
@@ -154,7 +148,7 @@ mod tests {
     fn non_dir_entries_ignored() {
         let dir = temp_dir("orphan_non_dir");
         let store = BookStore::new(dir.clone());
-        fs::create_dir_all(&store.books_root()).unwrap();
+        fs::create_dir_all(store.books_root()).unwrap();
         fs::write(store.books_root().join("readme.txt"), b"x").unwrap();
 
         let removed = store.cleanup_orphans().unwrap();
