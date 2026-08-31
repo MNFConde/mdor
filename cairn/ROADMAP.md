@@ -6,10 +6,10 @@
 
 - [x] M0 桌面开发环境搭建（VS/MSVC v14.50、rust-toolchain 1.97.1、dioxus-cli）
 - [x] M1 workspace + mdor-core 骨架 + gix 存储基座 + AppService + 书架骨架 + ci.yml
-- [ ] M2 StaticSiteSource 递归镜像下载（自建链 + 版本 tag）
+- [ ] M2 StaticSiteSource 递归镜像下载（自建链 + 版本 tag；httpmock 集成测试 + tests/ 目录 + cargo-llvm-cov 覆盖率接入）
 - [ ] M3 阅读器：内容抽取、资源协议、目录抽屉、滚动进度
 - [ ] M4 GitHubSource + SUMMARY 解析 + markdown 渲染
-- [ ] M5 版本功能开放（历史 UI / 多版本阅读 / SnapshotMigrator / 清理策略）
+- [ ] M5 版本功能开放（历史 UI / 多版本阅读 / SnapshotMigrator / 清理策略；SnapshotMigrator 引入 proptest property-based 测试）
 - [ ] M6 Android 打包（APK、权限、存储目录、cleartext）
 - [ ] M7 CI 与发布（GitHub Actions + release）
 

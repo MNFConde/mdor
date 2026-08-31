@@ -107,6 +107,10 @@ M2 StaticSiteSource 静态站镜像:
         ☐ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）
         ☐ tree 级大小写碰撞检测（同/异 blob oid 判定，M1 原语复用，D-09 定案 3）+ SnapshotMeta 碰撞字段落库 @high（标注渲染留 M3，26-08-30 定案）
     测试与验收:
-        ☐ httpmock 集成测试（fixtures/mdbook-static/）
+        ☐ tests/ 集成测试目录：`crates/mdor-core/tests/`（26-08-31 定案——首个集成场景 httpmock 落地时创建，早建无益：只能暴露 pub API，现有测试用 pub(crate) 共享资产会被迫公开）
+        ☐ httpmock 集成测试（fixtures/mdbook-static/；放 tests/，共享工具 tests/common/mod.rs）
+        ☐ cargo-llvm-cov 覆盖率接入：cargo install cargo-llvm-cov --locked → 本地 `cargo llvm-cov -p mdor-core --html`；CI 随首个集成测试一并挂 `--lcov`（tarpaulin 不支持 Windows 宿主，故选 llvm-cov）
+        ☐ property-based 试点（proptest）：versioning roundtrip（tag ref ↔ 序号解析）@low
+            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点
         ☐ 真实 mdBook 站点离线镜像验收（如 doc.rust-lang.org/book）
         ☐ 收尾：门禁 + cairn/LOG 更新

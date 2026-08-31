@@ -598,10 +598,10 @@ sequenceDiagram
 |---|---|---|
 | **M0** | 桌面开发环境搭建（VS/MSVC、rust-toolchain、dioxus-cli；android targets/JDK/SDK/NDK 留待 M6） | `dx serve --platform desktop` 跑通 |
 | **M1** | workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架骨架（中文 UI）+ 轻量 `ci.yml`（core-quality：fmt/clippy/test/audit） | `cargo test -p mdor-core` / `cargo run` / CI 全绿 |
-| **M2** | `StaticSiteSource` + 递归镜像下载（自建链 + 版本 tag；`fixtures/mdbook-static/` 集成测试 + httpmock） | 用真实 mdBook 站点离线镜像 |
+| **M2** | `StaticSiteSource` + 递归镜像下载（自建链 + 版本 tag；`fixtures/mdbook-static/` 集成测试 + httpmock；首次建立 `tests/` 集成测试目录 + `cargo-llvm-cov` 覆盖率接入） | 用真实 mdBook 站点离线镜像 |
 | **M3** | 阅读器：内容抽取、资源协议、目录抽屉、滚动进度 | 桌面全流程 + 自适应布局验证（窗口缩至手机宽度） |
 | **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染（`fixtures/github-sample/` + httpmock） | 真实仓库测试 |
-| **M5** | 版本功能开放：版本历史 UI + 按需 checkout 多版本阅读 + SnapshotMigrator（方案 D）+ 清理策略（初期删版本 tag；后续 shallow 截断 + gc 为可选设置项，两场景统一） | 修改源站后更新，验证旧版本位置可回放 |
+| **M5** | 版本功能开放：版本历史 UI + 按需 checkout 多版本阅读 + SnapshotMigrator（方案 D）+ 清理策略（初期删版本 tag；后续 shallow 截断 + gc 为可选设置项，两场景统一）+ 位置迁移引入 property-based 测试（proptest） | 修改源站后更新，验证旧版本位置可回放 |
 | **M6** | Android 打包（APK）、权限/存储目录/cleartext 配置 | 模拟器/真机验证 + 真机触控交互验证（滑动/返回/安全区/WebView/性能） |
 | **M7** | CI 与发布（GitHub Actions）：设计补充 + 落地 `ci.yml`（core-quality / windows-desktop-check / android-check）+ `release.yml`（tag 触发，签名 APK + Windows 桌面 exe）+ CI 与本地工具链解耦说明 | 打一个 tag 触发 CI 产出双平台 artifact；PR 自动跑质量与双平台编译检查 |
 

@@ -1,6 +1,15 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-31 · Rust 三 skill 对照审查落地三项修复（错误语义/missing_docs/测试工具去重）
+
+- 背景：对 `crates/` 做 rust-best-practices / rust-async-patterns / rust-testing 三 skill 符合度审查（约 90% / 95% / 80%），用户确认三项差距后全部执行。
+- ① 错误语义：`CommandQueue::enqueue` 队列关闭原来误用 `Error::Git` 兜底 → 新增专用变体 `Error::QueueClosed`，git 兜底变体回归纯 git 语义。
+- ② 文档门禁：mdor-core 开 `#![deny(missing_docs)]`，一次补齐 13 个文件模块级 `//!` 与 `SourceKind` 枚举/变体 doc；坑点：该 lint 对 `pub mod` 声明要求被指向文件含模块级文档，影响面比"枚举字段"大。
+- ③ 测试工具去重：`temp_dir` 逐字重复 5 处 + snapshot.rs 内联 1 处 → 下沉 lib.rs `#[cfg(test)] pub(crate) mod test_support`，6 个测试模块改引用；不建 `tests/` 目录（公共 API 暴露 + 跨层依赖倒挂），M2 httpmock 集成测试落地时再评估拆分。
+- 结论：三项均为卫生收敛，无新坑/新决策，不新增专题文档。
+- 测试基建排期沉淀：tests/ 目录（M2 随 httpmock 首建）/ cargo-llvm-cov（M2 接入，tarpaulin 不支持 Windows）/ proptest 触发线（① M5 SnapshotMigrator 主受益 ② M2 versioning 试点）已登记 plan.todo M2「测试与验收」+ ROADMAP + project.md §10。
+- 门禁：fmt --check / clippy -D warnings（顺手修 1 处 needless_borrow）/ test 41 绿 / audit --no-fetch exit 0（fetch 网络瞬断为既有坑）+ check-links.py 通过。
 ## 2026-08-30 · CI core-quality 首跑闭环：抓 MissingCommitter 产品级 bug → 修复 → 全绿（M1 验收全闭环）
 
 - M1 最后一项验收闭环：feature/m1-core → master ff-only 纯快进（28 提交，b5de42b）push 后 Actions core-quality 首跑 **test 步骤抓 2 失败**——`GitRef(...MissingCommitter)`：`edit_reference` 的 reflog committer 依赖环境 git 身份（`committer.name`→`user.name`→env），CI runner 无身份即爆；本机/VM 有全局身份被掩盖，**Android 真机同炸**（M6 才会暴露的产品级 bug，CI 提前抓到）。`refs/mdor/versions/*` 不在 reflog 自动创建清单故 tag 未触发。
