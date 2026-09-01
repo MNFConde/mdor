@@ -99,18 +99,28 @@ ubuntu-dev VM 环境（D-16 备用，M0 桌面范围; 操作手册见 cairn/ubun
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）
+    执行定案（26-08-31 会话确认）:
+        ✔ 镜像边界 = 同源 + 入口 URL 路径前缀双重限界（仅同源会从 /book/ 爬进同站 /std/ 等外书路径）@done(26-08-31 18:00)
+        ✔ <main> 抽取/链接重写不进 M2（属 §6.5 RenderService 渲染管线，M3）；M2 只交付镜像 + TOC @done(26-08-31 18:00)
+        ✔ 更新流程（UpdateBookCommand 实装）进 M2：D-08 tree hash 检测只在更新时生效，随切片6 闭环 @done(26-08-31 18:00)
+        ✔ proptest 试点不激活（versioning 纯函数已被 5 单测覆盖，留 M5 主受益点）@done(26-08-31 18:00)
+        ✔ fixture 用真实 mdbook build 构建 3-5 章小书（结构保真），一次构建永久跟踪 @done(26-08-31 18:00)
+        ✔ deps：reqwest 0.13.4（rustls，D-11）+ scraper 0.27.0 + url 2.5.4 + regex 1.12.2 + httpmock 0.8.3（dev-dep）已钉 workspace @done(26-08-31 18:00)
     fixtures:
-        ☐ fixtures/mdbook-static/：预构建静态 mdBook 站点样例 @high
+        ✔ fixtures/mdbook-static/：预构建静态 mdBook 站点样例（mdbook 0.5.4 构建 42 文件；源 mdbook-src/ 随库跟踪、book/ gitignored）@high @done(26-08-31 18:00)
     实现:
-        ☐ source/static_site.rs：递归镜像同源页面/资源 + 抽取 <main> + 构建 TOC @critical
-        ☐ 镜像边界：限同源 + 深度/大小上限（防越界爬取，§11）
-        ☐ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）
-        ☐ tree 级大小写碰撞检测（同/异 blob oid 判定，M1 原语复用，D-09 定案 3）+ SnapshotMeta 碰撞字段落库 @high（标注渲染留 M3，26-08-30 定案）
+        ✔ source/static_site.rs：递归镜像同源页面/资源 + 构建 TOC @critical @done(26-08-31 18:00)
+            注：<main> 抽取留 M3（§6.5 渲染管线）；镜像含 CSS url() 字体/背景发现 + noscript iframe 兜底（mdBook ≥0.5 toc.html 经 noscript 引用，html5ever 降级为转义文本）
+        ✔ 镜像边界：同源 + 入口路径前缀双重限界 + 深度/单文件/总量/文件数上限（MirrorOptions，防越界爬取，§11）@done(26-08-31 18:00)
+        ✔ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）@done(26-08-31 18:00)
+            注：stage_tree/commit_tree 拆分实现「检测前置」——先 stage 比对 tree oid 再决定是否 commit，落库编排 snapshot_pipeline.rs
+        ✔ tree 级大小写碰撞检测（同/异 blob oid 判定，M1 原语复用，D-09 定案 3）+ SnapshotMeta 碰撞字段落库 @high @done(26-08-31 18:00)（标注渲染留 M3，26-08-30 定案）
+            注：BookRepo::scan_case_collisions + SnapshotMeta.case_collisions + 异 blob 报错选项（SnapshotOptions）M2 接线
     测试与验收:
-        ☐ tests/ 集成测试目录：`crates/mdor-core/tests/`（26-08-31 定案——首个集成场景 httpmock 落地时创建，早建无益：只能暴露 pub API，现有测试用 pub(crate) 共享资产会被迫公开）
-        ☐ httpmock 集成测试（fixtures/mdbook-static/；放 tests/，共享工具 tests/common/mod.rs）
-        ☐ cargo-llvm-cov 覆盖率接入：cargo install cargo-llvm-cov --locked → 本地 `cargo llvm-cov -p mdor-core --html`；CI 随首个集成测试一并挂 `--lcov`（tarpaulin 不支持 Windows 宿主，故选 llvm-cov）
+        ✔ tests/ 集成测试目录：`crates/mdor-core/tests/`（tests/common/mod.rs 共享工具，pub(crate) 资产不外借）@done(26-08-31 18:00)
+        ✔ httpmock 集成测试（static_site_mirror.rs 11 例 + app_service_flow.rs 门面级 3 例：添加/更新/跳过/迁移）@done(26-08-31 18:00)
+        ✔ cargo-llvm-cov 覆盖率接入：本地 cargo llvm-cov（总 90.7%、static_site 94.9%）；CI 挂 taiki-e/install-action + --lcov @done(26-08-31 18:00)
         ☐ property-based 试点（proptest）：versioning roundtrip（tag ref ↔ 序号解析）@low
-            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点
-        ☐ 真实 mdBook 站点离线镜像验收（如 doc.rust-lang.org/book）
-        ☐ 收尾：门禁 + cairn/LOG 更新
+            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点（未触发，不激活）
+        ✔ 真实 mdBook 站点离线镜像验收（doc.rust-lang.org/book，#[ignore] 手工跑：175 文件 / 114 页 / TOC 25 章）@done(26-08-31 18:00)
+        ✔ 收尾：门禁全绿（fmt/clippy/test 77 绿/audit exit 0）+ plan.todo + cairn/LOG + ROADMAP 更新 @done(26-08-31 18:00)
