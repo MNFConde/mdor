@@ -7,11 +7,13 @@ use crate::error::{Error, Result};
 
 use self::library::LibraryStore;
 use self::progress::ProgressStore;
+use self::version_meta::VersionMetaStore;
 
 pub mod library;
 pub mod progress;
 pub mod snapshot;
 pub mod util;
+pub mod version_meta;
 
 /// BookStore 聚合（§9 存储布局）：core 只见 `bookstore/` 这一层，平台无关。
 pub struct BookStore {
@@ -41,6 +43,14 @@ impl BookStore {
     #[must_use]
     pub fn progress(&self) -> ProgressStore {
         ProgressStore::new(&self.base_dir)
+    }
+
+    /// 书籍版本元数据（`books/<id>/.mdor/versions/`，§9）。
+    ///
+    /// 以书籍仓库根为基座；book_id 不存在时由调用方保证（落库流程先建仓库）。
+    #[must_use]
+    pub fn version_meta(&self, book_id: &str) -> VersionMetaStore {
+        VersionMetaStore::new(&self.books_root().join(book_id))
     }
 
     /// 书籍仓库根目录（`<bookstore>/books`）。

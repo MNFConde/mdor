@@ -94,12 +94,43 @@ pub enum Error {
     /// 实体不存在（如书架中查不到 book_id）。
     #[error("未找到：{0}")]
     NotFound(String),
+    /// 实体已存在（如重复添加同一 URL 的书籍）。
+    #[error("已存在：{0}")]
+    AlreadyExists(String),
     /// URL 未被任何已注册来源适配器认识（§4 detect 全部落空）。
     #[error("没有适配器认识该来源：{0}")]
     NoSource(String),
     /// 功能占位（对应里程碑尚未实现，标注所属阶段）。
     #[error("功能未实现：{0}")]
     Unsupported(&'static str),
+    /// URL 无效（无法解析或 scheme 不受支持）。
+    #[error("URL 无效：{0}")]
+    InvalidUrl(String),
+    /// HTTP 请求失败（网络层错误）。
+    #[error("HTTP 请求失败：{0}")]
+    Http(String),
+    /// HTTP 响应状态非 2xx。
+    #[error("HTTP 状态 {status}（{url}）")]
+    HttpStatus {
+        /// 请求的 URL。
+        url: String,
+        /// 响应状态码。
+        status: u16,
+    },
+    /// 镜像超限（§11 边界：文件数/总量/单文件/深度）。
+    #[error("镜像超限（{limit}）：{detail}")]
+    MirrorLimit {
+        /// 触发的限额名（total_bytes / file_count / file_bytes / depth）。
+        limit: &'static str,
+        /// 触发时的详情。
+        detail: String,
+    },
+    /// 大小写碰撞且内容不同（D-09 定案 3 报错选项；Windows 物理单文件会静默丢失一方）。
+    #[error("大小写碰撞内容不同（异 blob）：{paths:?}")]
+    CaseCollision {
+        /// 碰撞路径组。
+        paths: Vec<String>,
+    },
 }
 
 impl Error {

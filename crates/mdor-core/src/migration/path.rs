@@ -80,6 +80,7 @@ mod tests {
                 fetched_at: 0,
                 source_version: None,
                 content_tree_hash: String::new(),
+                case_collisions: Vec::new(),
             },
         }
     }

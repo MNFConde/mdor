@@ -22,6 +22,17 @@ use crate::versioning;
 const MDOR_IDENTITY_NAME: &str = "mdor";
 const MDOR_IDENTITY_EMAIL: &str = "mdor@localhost";
 
+/// 大小写碰撞记录（D-09 定案 3）：一组大小写折叠后相同的不同路径。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseCollision {
+    /// 碰撞路径组（≥2 条；大小写折叠后相同）。
+    pub paths: Vec<PathBuf>,
+    /// 是否同 blob（oid 相等 → 内容一致可归一；false → 异 blob 需标注/报错）。
+    pub same_blob: bool,
+    /// 组内首路径的 blob oid（同 blob 时即公共 oid）。
+    pub blob_oid: ObjectId,
+}
+
 /// 每书一个 git 仓库（场景2 自建链 / 场景1 上游克隆，§7.2）。
 pub struct BookRepo {
     repo: gix::Repository,
@@ -71,23 +82,26 @@ impl BookRepo {
         Ok(())
     }
 
-    /// 将文件集合（相对路径 → 字节）作为一次快照自建一个 commit，返回 commit id。
+    /// 将文件集合写入对象库并构建 tree（不 commit）。
     ///
-    /// 相同字节 blob 由对象库内容寻址去重（D-01，§7.4）。场景1 的 clone/fetch 上游走
-    /// 独立路径（M4），本方法只服务场景2 自建链。
-    pub fn commit_workdir(
-        &self,
-        files: &[(PathBuf, Vec<u8>)],
-        message: &str,
-        parents: Vec<ObjectId>,
-    ) -> Result<ObjectId> {
+    /// D-08 变更检测前置：调用方先比对该 tree 与上个 commit 的 tree，
+    /// 相同则跳过空提交，不同再以 [`Self::commit_tree`] 落 commit。
+    pub fn stage_tree(&self, files: &[(PathBuf, Vec<u8>)]) -> Result<ObjectId> {
         let mut file_ids = Vec::with_capacity(files.len());
         for (path, bytes) in files {
             let id = self.repo.write_blob(bytes)?;
             file_ids.push((path.clone(), id.detach()));
         }
-        let tree = build_tree(&self.repo, &file_ids)?;
+        build_tree(&self.repo, &file_ids)
+    }
 
+    /// 以现成 tree 生成一个 commit（`stage_tree` 的配对提交步骤），返回 commit id。
+    pub fn commit_tree(
+        &self,
+        tree: ObjectId,
+        message: &str,
+        parents: Vec<ObjectId>,
+    ) -> Result<ObjectId> {
         let time = gix::date::Time::now_local_or_utc();
         let signature = gix::actor::Signature {
             name: MDOR_IDENTITY_NAME.into(),
@@ -105,9 +119,24 @@ impl BookRepo {
             extra_headers: vec![],
         };
         let id = self.repo.write_object(&commit)?.detach();
+        tracing::debug!(message, parents = parent_count, %id, "自建快照 commit");
+        Ok(id)
+    }
+
+    /// 将文件集合（相对路径 → 字节）作为一次快照自建一个 commit，返回 commit id。
+    ///
+    /// 相同字节 blob 由对象库内容寻址去重（D-01，§7.4）。场景1 的 clone/fetch 上游走
+    /// 独立路径（M4），本方法只服务场景2 自建链。
+    pub fn commit_workdir(
+        &self,
+        files: &[(PathBuf, Vec<u8>)],
+        message: &str,
+        parents: Vec<ObjectId>,
+    ) -> Result<ObjectId> {
+        let tree = self.stage_tree(files)?;
+        let id = self.commit_tree(tree, message, parents)?;
         // 物化工作区：workdir 恒等于当前版本内容（§9，本地 http 服务直读）。
         self.checkout(id)?;
-        tracing::debug!(files = files.len(), message, parents = parent_count, %id, "自建快照 commit");
         Ok(id)
     }
 
@@ -149,6 +178,74 @@ impl BookRepo {
             .try_peel_to_id()
             .map_err(|e| Error::Git(e.to_string()))?
             .map(|id| id.detach()))
+    }
+
+    /// commit 的根 tree oid（D-08 变更检测原语：内容树 hash）。
+    pub fn tree_of(&self, commit: ObjectId) -> Result<ObjectId> {
+        Ok(self.repo.find_object(commit)?.peel_to_tree()?.id)
+    }
+
+    /// 大小写碰撞扫描（D-09 定案 3 件①）：递归收集树内全部 blob 路径，
+    /// 找出大小写折叠后相同但路径不同的碰撞组，并按 blob oid 判定同/异内容。
+    ///
+    /// 同 blob（oid 相等）→ 内容一致，物理归一零丢失；异 blob → 内容真不同，
+    /// Windows checkout 会静默覆盖（树序后者胜出），消费方按 M2 报错选项拦截。
+    pub fn scan_case_collisions(&self, commit: ObjectId) -> Result<Vec<CaseCollision>> {
+        let mut paths = Vec::new();
+        collect_tree_paths(&self.repo, self.tree_of(commit)?, Path::new(""), &mut paths)?;
+
+        // 大小写折叠 → 路径组（保留出现顺序稳定）。
+        let mut groups: std::collections::BTreeMap<String, Vec<PathBuf>> =
+            std::collections::BTreeMap::new();
+        for path in paths {
+            let key = path.to_string_lossy().to_lowercase();
+            groups.entry(key).or_default().push(path);
+        }
+
+        let mut out = Vec::new();
+        for group in groups.into_values() {
+            if group.len() < 2 {
+                continue;
+            }
+            // 全部两两组合判定同/异 blob。
+            let mut same_blob = true;
+            let mut oids = Vec::with_capacity(group.len());
+            for path in &group {
+                let oid = self
+                    .blob_oid(commit, path)
+                    .ok_or_else(|| Error::Git(format!("碰撞路径缺 blob：{path:?}")))?;
+                oids.push(oid);
+            }
+            let first = oids[0];
+            for oid in &oids[1..] {
+                if *oid != first {
+                    same_blob = false;
+                    break;
+                }
+            }
+            out.push(CaseCollision {
+                paths: group,
+                same_blob,
+                blob_oid: first,
+            });
+        }
+        Ok(out)
+    }
+
+    /// commit 树内指定相对路径的 blob oid（路径逐段下钻）。
+    fn blob_oid(&self, commit: ObjectId, rel: &Path) -> Option<ObjectId> {
+        let mut current = self.tree_of(commit).ok()?;
+        for seg in rel.components() {
+            let tree = self.repo.find_object(current).ok()?.peel_to_tree().ok()?;
+            let decoded = tree.decode().ok()?;
+            let name = seg.as_os_str().to_string_lossy();
+            let found = decoded
+                .entries
+                .iter()
+                .find(|e| e.filename == name.as_bytes())?;
+            current = found.oid.to_owned();
+        }
+        Some(current)
     }
 
     /// 检出目标 commit 的树到工作区（单一工作区、硬切换，§7.2 历史读取）。

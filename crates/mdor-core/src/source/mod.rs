@@ -26,6 +26,16 @@ pub struct FetchResult {
     pub title: String,
     /// 章节树。
     pub toc: Vec<TocEntry>,
+    /// 镜像文件集（相对路径 → 字节；场景 2 落库输入。GitHub 适配器走独立路径）。
+    pub files: std::collections::HashMap<std::path::PathBuf, Vec<u8>>,
+}
+
+impl FetchResult {
+    /// 文件集访问（落库编排消费；避免泄漏 HashMap 具体类型）。
+    #[must_use]
+    pub fn files(&self) -> &std::collections::HashMap<std::path::PathBuf, Vec<u8>> {
+        &self.files
+    }
 }
 
 /// 输入适配器 trait（§4）：所有文档来源实现此接口，经 [`SourceRegistry`] 注册、
@@ -45,4 +55,6 @@ pub trait SourceAdapter: Send + Sync {
 }
 
 pub mod registry;
+pub mod static_site;
 pub use registry::SourceRegistry;
+pub use static_site::StaticSiteSource;
