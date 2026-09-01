@@ -3,6 +3,7 @@
 pub mod error;
 pub mod migration;
 pub mod model;
+pub mod render;
 pub mod services;
 pub mod source;
 pub mod store;
