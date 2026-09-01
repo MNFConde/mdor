@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "HTML 解析坑（scraper 0.27 / html5ever）：noscript 内容降级为转义文本节点致选择器抓不到（mdBook ≥0.5 toc.html 经 noscript iframe 引用，镜像引擎漏抓 sidebar，需正则兜底）；HTML 内容嗅探不能只认完整页（片段被误判非 HTML 致链接不发现）；:scope 选择器/child_elements/mdBook 未闭合 li 自动修正等实测要点（M3 渲染管线复用）"
+summary: "HTML 解析坑（scraper 0.27 / html5ever）：noscript 内容降级为转义文本节点致选择器抓不到（mdBook ≥0.5 toc.html 经 noscript iframe 引用，镜像引擎漏抓 sidebar，需正则兜底）；HTML 内容嗅探不能只认完整页（片段被误判非 HTML 致链接不发现）；scraper 0.27 属性不可变致 DOM 层无法改属性值（链接重写只能两段式字符串占位替换）；:scope 选择器/child_elements/mdBook 未闭合 li 自动修正等实测要点（M3 渲染管线复用）"
 tags: [mdor, html, scraper, html5ever, html-parsing, mdbook]
 contains: [lesson, procedure]
 created: "2026-08-31"
-updated: "2026-08-31"
+updated: "2026-09-02"
 related: []
 authoring_mode: ai_generated
 ---
@@ -19,6 +19,7 @@ M2 StaticSiteSource 镜像引擎（`source/static_site.rs`）与 TOC 构建（`b
 
 1. **html5ever 把 `<noscript>` 内容降级为转义文本节点，选择器抓不到**（2026-08-31 M2 实锤）：`<noscript><iframe src="toc.html"></iframe></noscript>` 经 `Html::parse_fragment` 后，iframe 不是元素节点，而是 `&lt;iframe src="toc.html"&gt;` 形态的转义文本（`inner_html()` 可证）。mdBook ≥0.5 的 sidebar 正是经 noscript iframe 引用 `toc.html`（JS 可用时由 toc.js 注入，noscript 仅兜底）——镜像引擎靠 `iframe[src]` 选择器发现 toc.html 即漏抓，TOC 构建随之落空。**对策**：对 `noscript` 元素的文本做正则兜底，从文本中找回 `(?:src|href)=["']([^"']+)["']` 引用（`extract_links` 内实现）。
 2. **HTML 内容嗅探不能只认完整页**：`<!doctype html` / `<html` 双判据会把**片段**（测试假站的 `<a href=...>`、`<link rel=...>` 等，无 `<html>` 包裹）误判为非 HTML → 链接不发现 → 镜像集缺页（集成测试三个用例同时失败的根因）。**对策**：嗅探清单放宽为 `<!doctype html` / `<html` / `<a ` / `<link` / `<img` / `<p>` / `<div` 任一命中；代价是极少数含这些字面量的资源文件会被多解析一次（解析无匹配无害）。
+3. **scraper 0.27 属性不可变，DOM 层改不了属性值**（2026-09-02 M3 切片1 实锤）：`ElementRef::attr(name)` 只返回 `Option<&str>` 借用，无 setter；`Element.attrs` 是私有 `Vec<(QualName, StrTendril)>`，无任何修改 API。改写 `<main>` 内 `href`/`src` 等相对资源引用（`./img/logo.svg` → 本地分发前缀）**无法在 DOM 上原地改**。**对策**：两段式字符串替换——① 序列化 `inner_html()` 后，用正则把相对/书根路径改写为占位符根（如 `/mdor-res/v1/`），跳过 `#` 锚点 / `http(s)` / `data:` 等 scheme；② 用 `str::replacen` 把占位符根整体替换为书根上下文前缀。占位符不含 `&`/`<`/`>`/`"`，故 html5ever 序列化转义不影响文本替换（副作用：html5ever 会规范属性顺序与 `&`→`&amp;`，WebView 接受、对阅读无碍）。
 
 ## 实测要点（scraper 0.27 / html5ever 0.39）
 

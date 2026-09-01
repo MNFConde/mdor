@@ -1,6 +1,13 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · 切片1/2 Rust 三 skill 审查收敛 + 提交流程约定 + 坑回调 topic
+
+- 对切片1/2 两 commit 对照 rust 三 skill（best-practices / async-patterns / testing）审查，判定整体合格，硬伤 1 处：`render/` 每章渲染重复编译正则 + 高频路径 `.expect`。
+- 修复（61cf1ae）：`href/src` 与 `id` 两处正则改为 `const` 常量 + `LazyLock<Regex>` 缓存（仅初始化一次），`.expect` 收敛到单处常量初始化；门禁 fmt/clippy 全绿、全量 87 单测 + 16 集成无回归。
+- AGENTS.md 质量门禁追加提交流程约定：提交前用环境中对应语言的 skill 审查改动（改什么语言就用其 skill），按审查结果修正后提交；不限定具体语言与 skill 名。
+- 坑回调（补记录缺口）：切片1 的「scraper 0.27 属性不可变 → 链接重写只能两段式占位替换」原先只存 LOG 摘要，现补进 [html-scraper-pitfalls.md](html-scraper-pitfalls.md) 教训区（M3 复用要点）。
+
 ## 2026-09-02 · M3 切片1/2 落地（core 渲染管线 + 门面接线/进度）
 
 - **切片1 core 渲染管线**（`render/` 三件 + CSS 内嵌，不触碰 app 层）：
