@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-01 · M3 阅读器计划排定（plan.todo 建块，M3 未开工）
+
+- `plan.todo` 新增 M3 块（表头补齐）：6 切片 = core 渲染管线（render/ 三件 + CSS 内嵌）→ 门面接线+进度 → 本地资源协议（tiny_http/D-04）→ 阅读屏+目录抽屉 → 自适应布局（§3.3 600px 断点）→ 大小写碰撞标注渲染（D-09 定案 3 件③）；验收 = 桌面全流程 + 窗口缩至手机宽度（§10 M3 行）
+- 既定约束块收拢文档定案（实现不再讨论）：D-04 tiny_http + 渲染时重写 + no-store / D-05 dangerous_inner_html / D-06 方案 1 include_bytes / D-09 碰撞归一+标注 / M3 不含项（markdown 渲染 M4、版本 UI M5、Android 触控 M6）
+- 依据核对：project.md §6.5/§6.6/§3.3/§10/§12 + decisions.md D-04~D-09 + html-scraper-pitfalls.md（M3 复用坑清单）+ 代码预留点（app_service.rs `open_reading` M3 注、static_site.rs 模块注、SnapshotMeta.case_collisions）
+- 门禁：文档-only 改动，无代码测试触发；check-links 待下次代码会话例行执行
 ## 2026-09-01 · M2 收尾杂项归档（AGENTS.md 状态行 / CI lcov artifact / audit 现状 / proptest 定案落表）
 
 - 根 `AGENTS.md` 状态行 M1 → M2 全量验收（此前 M2 七提交均未触及，违反协作约定项已补）；plan.todo M2 proptest 试点按 26-08-31 定案标 ✘ 不激活 + 表头补 M3

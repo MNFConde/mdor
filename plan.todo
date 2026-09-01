@@ -125,3 +125,49 @@ M2 StaticSiteSource 静态站镜像:
         ✔ 真实 mdBook 站点离线镜像验收（doc.rust-lang.org/book，#[ignore] 手工跑：175 文件 / 114 页 / TOC 25 章）@done(26-08-31 18:00)
         ✔ 收尾：门禁全绿（fmt/clippy/test 77 绿/audit exit 0）+ plan.todo + cairn/LOG + ROADMAP 更新 @done(26-08-31 18:00)
         ✔ 收尾补充（26-09-01）：根 AGENTS.md 状态行更新为 M2 落地；CI lcov 报告接入 upload-artifact 归档；cargo audit 现状归档（14 条 allowed warnings = dioxus 桌面依赖链 unmaintained/unsound，默认不 deny、非漏洞，详见 cairn/cargo-audit-behavior.md）；proptest 试点按定案标 ✘ 不激活 @done(26-09-01)
+
+M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
+    验收（project.md §10）：桌面全流程（添加 → 书架 → 阅读 → 目录跳转 → 进度恢复）+ 自适应布局验证（窗口缩至手机宽度）
+    依据：doc/project.md §6.5/§6.6/§3.3/§10/§12；decisions.md D-04/D-05/D-06/D-09；cairn/html-scraper-pitfalls.md
+    既定约束（文档已定案，实现按此执行、不再讨论）:
+        资源通道 = 本地 tiny_http 服务器（进程归 mdor-app）+ http://127.0.0.1:PORT 绝对 URL；mdor-book:// 自定义 scheme 降级备选（D-04）
+        链接重写时机 = 渲染时内存中进行（非存储时：端口动态/保上游原样/切版本零成本），URL 不带版本号，缓存由 Cache-Control: no-store 根治（D-04）
+        注入形态 = dangerous_inner_html，iframe 已否决（跨源破坏统一滚动进度跟踪，D-05）；<script> 不执行由 Dioxus 自绘 TOC/导航替代（E1 预期行为，验证书页无功能缺失）
+        阅读页样式 = include_bytes! 内嵌、渲染时 <style> 内联注入、不经本地 http（D-06 方案 1，2026-08-13 已决策；排版 CSS + 代码高亮主题，保证两端一致）
+        大小写碰撞归一 + 标注渲染归 M3（D-09 定案 3 件③，2026-08-30 排期；tree 级检测 + SnapshotMeta 落库 M2 已完成，M3 只做渲染层消费）
+        deps 新增：tiny_http（钉根 [workspace.dependencies]，D-12 版本约束一处钉版）；阅读页 CSS 内嵌资源存放位置实现时敲定
+        M3 不含：markdown 渲染/pulldown-cmark（M4 GitHub 路径）、版本历史 UI/多版本阅读（M5）、Android 触摸滚动/返回键/安全区/cleartext（M6 清单 §10.1）
+    切片1 core 渲染管线（render/，§6.5）:
+        ☐ render/resources.rs：URL ↔ 规范化路径双向映射 + 书根内白名单（纯函数、无 socket；渲染重写与 LocalHttpServer 共用同一逻辑 = 唯一事实来源，防 ../ 穿越 B5）@critical
+        ☐ render/html_extract.rs：scraper 抽 <main id="content"> + 资源链接重写为本地绝对 URL（mdBook 0.4.x/≥0.5 页面结构一致，不受 toc.html 双形态影响；坑清单见 cairn/html-scraper-pitfalls.md：noscript 降级/嗅探/:scope）@critical
+        ☐ render/mod.rs：render_chapter 入口（读工作区 site/ 章节 → 抽取 → 重写 → 内联 CSS <style> 注入）@critical
+        ☐ 阅读页 CSS 内嵌（include_bytes!，D-06 方案 1）@high
+        ☐ 切片验证：单测覆盖抽取/重写/双向映射/穿越拦截（复用 fixtures/mdbook-static），cargo test -p mdor-core 绿 @critical
+    切片2 门面接线 + 进度（SD-2，§6.6/§6.9）:
+        ☐ AppService::open_reading 填全：读 progress.json → render_chapter → 扩展 OpenReading（+ toc + 章节 HTML + 初始位置）；位置指向章节缺失时回退 TOC 首章（迁移失败保留旧位置场景）@high
+        ☐ AppService::save_progress：scroll_ratio 保存（普通函数非命令——短/无网络/无并发归普通函数，§6.9）+ 埋点 @high
+        ☐ 切片验证：tests/ 门面级集成测试（渲染往返 + 进度读写）@high
+    切片3 本地资源协议（app 层，D-04 / SD-5）:
+        ☐ [workspace.dependencies] 钉 tiny_http @high
+        ☐ mdor-app/src/local_http.rs：LocalHttpServer（独立线程池不卡 UI B1 + bind("127.0.0.1:0") 动态端口 B2 + Cache-Control: no-store B6 + 白名单校验经 core resources.rs B5）@critical
+        ☐ app 启动起服 + PORT 注入 AppService/AppContext（先于渲染确定并写入重写 URL，§6.5 PORT 来源；不常驻 Service，B8）@critical
+        ☐ 切片验证：桌面起服请求子资源字节返回（图片/CSS 实测 200 + no-store；越界路径 403/404）@critical
+    切片4 阅读屏 + 目录抽屉（UI 四屏补全，§12 screens/）:
+        ☐ app.rs Router + state.rs GlobalSignal（当前书籍/版本）；书架 → 阅读 → 返回跳转 @high
+        ☐ screens/reader.rs：dangerous_inner_html 注入 + 滚动监听节流存进度 + 切章保存 @critical
+        ☐ 目录抽屉 components/：Dioxus 自绘 TOC（数据源 open_reading 返回 toc；子章节锚点跳转 heading_anchor）@high
+        ☐ screens/add_book.rs：URL 输入添加书籍（书架现无添加入口，桌面全流程必需；URL 探测/校验仍在 core）@high
+        ☐ 切片验证：桌面端到端（添加——真实站点或本地静态服务喂 fixtures/mdbook-static → 打开 → 目录跳转 → 滚动 → 重开进度恢复）@critical
+    切片5 自适应布局（§3.3，移动优先 + 桌面壳）:
+        ☐ 断点 600px：≤600px 底部导航/全屏阅读/目录抽屉；≥600px 左侧固定侧边栏（书架 + 目录树）+ 顶部工具栏 @high
+        ☐ 监听视口宽度变化即时切换导航壳（仅重建 UI 壳，AppService 句柄与阅读进度状态不丢）@high
+        ☐ 切片验证：窗口缩至手机宽度切换正常（M3 验收项）@critical
+    切片6 大小写碰撞标注渲染（D-09 定案 3 件③）:
+        ☐ 同 blob 归一：渲染层消费 SnapshotMeta.case_collisions（oid 相等 → 内容一致归一单资源）@low
+        ☐ 异 blob 标注：Windows 单渲染 + 标注（工作区直读 D-10 自然退化 + 标注层，不依赖 blob 直接读；以 checkout 后实际物理内容为准，勿依赖「树序后者胜出」实现细节）@low
+        ☐ 切片验证：碰撞 tree fixture 单测（同/异 blob 两形态）@low
+    收尾:
+        ☐ 桌面全流程验收（真实站点镜像书全流程跑通）+ 自适应布局验证 @critical
+        ☐ 门禁全绿：fmt --check → clippy -D warnings → test → audit + 覆盖率不回退 @high
+        ☐ 文档回写：plan.todo + cairn/LOG + ROADMAP + 根 AGENTS.md 状态行 @high
+        ☐ 环境注记：桌面 UI 验收在 Windows 宿主（dx serve --platform desktop，于 crates/mdor-app/ 目录运行）；ubuntu-dev VM 备选（GUI 调试要点见 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」）
