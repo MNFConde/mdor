@@ -28,6 +28,12 @@ jobs:
         run: cargo clippy -p mdor-core -- -D warnings
       - name: test
         run: cargo test -p mdor-core
+      # 覆盖率（M2：随首个集成测试接入，taiki-e/install-action；lcov 报告归档）
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: coverage
+        run: cargo llvm-cov -p mdor-core --lcov --output-path lcov.info
       - name: audit
         run: |
           cargo install cargo-audit --locked
