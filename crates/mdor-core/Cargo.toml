@@ -19,6 +19,11 @@ gix-worktree-state = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
+reqwest = { workspace = true }
+scraper = { workspace = true }
+url = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+httpmock = "0.8.3"
