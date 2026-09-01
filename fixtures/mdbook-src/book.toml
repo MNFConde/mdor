@@ -1,0 +1,7 @@
+[book]
+title = "mdor 测试小书"
+authors = ["mdor"]
+language = "zh"
+
+[build]
+build-dir = "book"
