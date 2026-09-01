@@ -35,6 +35,18 @@ pub struct RenderedChapter {
     pub anchors: Vec<String>,
 }
 
+impl RenderedChapter {
+    /// 空渲染结果（无可用章节时的降级占位，门面不致命）。
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            html: String::new(),
+            title: String::new(),
+            anchors: Vec::new(),
+        }
+    }
+}
+
 /// 渲染单章正文（§6.5 StaticSite 路径）。
 ///
 /// 输入为章节原始 HTML 字节；`ctx_prefix` 为书中根 URL 前缀

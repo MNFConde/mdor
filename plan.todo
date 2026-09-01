@@ -138,15 +138,15 @@ M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
         deps 新增：tiny_http（钉根 [workspace.dependencies]，D-12 版本约束一处钉版）；阅读页 CSS 内嵌资源存放位置实现时敲定
         M3 不含：markdown 渲染/pulldown-cmark（M4 GitHub 路径）、版本历史 UI/多版本阅读（M5）、Android 触摸滚动/返回键/安全区/cleartext（M6 清单 §10.1）
     切片1 core 渲染管线（render/，§6.5）:
-        ☐ render/resources.rs：URL ↔ 规范化路径双向映射 + 书根内白名单（纯函数、无 socket；渲染重写与 LocalHttpServer 共用同一逻辑 = 唯一事实来源，防 ../ 穿越 B5）@critical
-        ☐ render/html_extract.rs：scraper 抽 <main id="content"> + 资源链接重写为本地绝对 URL（mdBook 0.4.x/≥0.5 页面结构一致，不受 toc.html 双形态影响；坑清单见 cairn/html-scraper-pitfalls.md：noscript 降级/嗅探/:scope）@critical
-        ☐ render/mod.rs：render_chapter 入口（读工作区 site/ 章节 → 抽取 → 重写 → 内联 CSS <style> 注入）@critical
-        ☐ 阅读页 CSS 内嵌（include_bytes!，D-06 方案 1）@high
-        ☐ 切片验证：单测覆盖抽取/重写/双向映射/穿越拦截（复用 fixtures/mdbook-static），cargo test -p mdor-core 绿 @critical
+        ✔ render/resources.rs：URL ↔ 规范化路径双向映射 + 书根内白名单（纯函数、无 socket；渲染重写与 LocalHttpServer 共用同一逻辑 = 唯一事实来源，防 ../ 穿越 B5）@critical @done(26-09-02 00:00)
+        ✔ render/html_extract.rs：scraper 抽 <main id="content"> + 资源链接重写为本地绝对 URL（mdBook 0.4.x/≥0.5 页面结构一致，不受 toc.html 双形态影响；坑清单见 cairn/html-scraper-pitfalls.md：noscript 降级/嗅探/:scope）@critical @done(26-09-02 00:00)
+        ✔ render/mod.rs：render_chapter 入口（读工作区 site/ 章节 → 抽取 → 重写 → 内联 CSS <style> 注入）@critical @done(26-09-02 00:00)
+        ✔ 阅读页 CSS 内嵌（include_bytes!，D-06 方案 1）@high @done(26-09-02 00:00)
+        ✔ 切片验证：单测覆盖抽取/重写/双向映射/穿越拦截（复用 fixtures/mdbook-static），cargo test -p mdor-core 绿 @critical @done(26-09-02 00:00)
     切片2 门面接线 + 进度（SD-2，§6.6/§6.9）:
-        ☐ AppService::open_reading 填全：读 progress.json → render_chapter → 扩展 OpenReading（+ toc + 章节 HTML + 初始位置）；位置指向章节缺失时回退 TOC 首章（迁移失败保留旧位置场景）@high
-        ☐ AppService::save_progress：scroll_ratio 保存（普通函数非命令——短/无网络/无并发归普通函数，§6.9）+ 埋点 @high
-        ☐ 切片验证：tests/ 门面级集成测试（渲染往返 + 进度读写）@high
+        ✔ AppService::open_reading 填全：读 progress.json → render_chapter → 扩展 OpenReading（+ toc + 章节 HTML + 初始位置）；位置指向章节缺失时回退 TOC 首章（迁移失败保留旧位置场景）@high @done(26-09-02 00:00)
+        ✔ AppService::save_progress：scroll_ratio 保存（普通函数非命令——短/无网络/无并发归普通函数，§6.9）+ 埋点 @high @done(26-09-02 00:00)
+        ✔ 切片验证：tests/ 门面级集成测试（渲染往返 + 进度读写）@high @done(26-09-02 00:00)
     切片3 本地资源协议（app 层，D-04 / SD-5）:
         ☐ [workspace.dependencies] 钉 tiny_http @high
         ☐ mdor-app/src/local_http.rs：LocalHttpServer（独立线程池不卡 UI B1 + bind("127.0.0.1:0") 动态端口 B2 + Cache-Control: no-store B6 + 白名单校验经 core resources.rs B5）@critical

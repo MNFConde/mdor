@@ -1,6 +1,17 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · M3 切片1/2 落地（core 渲染管线 + 门面接线/进度）
+
+- **切片1 core 渲染管线**（`render/` 三件 + CSS 内嵌，不触碰 app 层）：
+  - `resources.rs`：LOCAL_PREFIX/VERSION_SEGMENT、`build_ctx`/`url_prefix_root`/`local_url`/`resolve_local_url` 双向映射（URL↔相对路径）+ `sanitize_relative` 目录穿越白名单（B5），纯函数无 socket。
+  - `html_extract.rs`：`extract_main`（`main#content` 优先、回退 `main`）+ `rewrite_links`（regex 定向改写 `href`/`src`，跳过 `#` 锚点/外部 scheme）。
+  - `mod.rs`：`RenderedChapter`（html/title/anchors）+ `render_chapter` 入口，内联 BOOK_CSS（D-06 方案 1 `include_str!`），抽取标题与锚点。
+  - **关键坑**：scraper 0.27 属性**不可变**（`ElementRef::attr` 无 setter，`Element.attrs` 私有只读），`rewrite_links` 无法原地改属性 → 只能「先序列化相对引用为 `/mdor-res/v1/` 占位符、再整体 `replacen` 为书根上下文前缀」两段式；占位符不含 `&`/`<`/`>`/`"` 故 html5ever 转义不影响文本替换。
+- **切片2 门面接线 + 进度**：`OpenReading` 扩展（book/position/toc/chapter_html/initial_anchor/scroll_ratio）；`open_reading_inner`→`locate_and_render`（无版本/TOC 缺失 → 空渲染降级不致命；进度章节缺失 → 回退 TOC 首章；定位章渲染失败 → 回退首章）；`save_progress`（普通函数，`version_id`=当前版本 + `saved_at` unix，info/warn 埋点）。
+- 回写：plan.todo 切片1（5 项）+ 切片2（3 项）勾选 @done；`RenderedChapter::empty()` 降级占位。
+- 门禁：fmt/clippy 全绿，mdor-core 单测 63→87（新增 24）+ 集成 render_flow 2（渲染往返 + 进度读写）新绿，全量 87 + 16 集成（1 ignored）绿；audit 无新增依赖。
+
 ## 2026-09-01 · M3 阅读器计划排定（plan.todo 建块，M3 未开工）
 
 - `plan.todo` 新增 M3 块（表头补齐）：6 切片 = core 渲染管线（render/ 三件 + CSS 内嵌）→ 门面接线+进度 → 本地资源协议（tiny_http/D-04）→ 阅读屏+目录抽屉 → 自适应布局（§3.3 600px 断点）→ 大小写碰撞标注渲染（D-09 定案 3 件③）；验收 = 桌面全流程 + 窗口缩至手机宽度（§10 M3 行）
