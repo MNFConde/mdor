@@ -11,6 +11,7 @@
 
 use regex::{Captures, Regex};
 use scraper::{Html, Selector};
+use std::sync::LazyLock;
 
 use super::resources::{LOCAL_PREFIX, VERSION_SEGMENT, local_url};
 
@@ -51,18 +52,22 @@ pub fn rewrite_links(html: &str, ctx_prefix: &str) -> String {
     placeholder.replacen(&needle, ctx_prefix, usize::MAX)
 }
 
+/// 常量正则：匹配 `href`/`src` 属性值（仅编译一次，避免每章渲染重复编译）。
+static HREF_SRC_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)(href|src)="([^"]*)""#).expect("href/src 常量正则"));
+
 /// 相对引用 → 占位符根（`href`/`src` 属性内）。
 fn rebase_relatives(html: &str) -> String {
-    let re = Regex::new(r#"(?i)(href|src)="([^"]*)""#).expect("href/src attr 匹配正则");
-    re.replace_all(html, |caps: &Captures| {
-        let attr = caps.get(1).expect("attr").as_str();
-        let value = caps.get(2).expect("value").as_str();
-        match rebase_value(value) {
-            Some(rebased) => format!(r#"{attr}="{rebased}""#),
-            None => caps.get(0).expect("full").as_str().to_string(),
-        }
-    })
-    .into_owned()
+    HREF_SRC_RE
+        .replace_all(html, |caps: &Captures| {
+            let attr = caps.get(1).expect("attr").as_str();
+            let value = caps.get(2).expect("value").as_str();
+            match rebase_value(value) {
+                Some(rebased) => format!(r#"{attr}="{rebased}""#),
+                None => caps.get(0).expect("full").as_str().to_string(),
+            }
+        })
+        .into_owned()
 }
 
 /// 判断属性值是否为需改写的本地相对资源引用；是则返回改写后的占位符 URL。

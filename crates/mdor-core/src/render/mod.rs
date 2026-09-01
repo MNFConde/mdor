@@ -9,7 +9,9 @@ pub mod resources;
 use crate::error::{Error, Result};
 
 use html_extract::{extract_main, rewrite_links};
+use regex::Regex;
 use resources::LOCAL_PREFIX;
+use std::sync::LazyLock;
 
 /// 阅读页样式表内嵌集合（D-06 方案 1：include_bytes!/include_str! 编入发布二进制）。
 ///
@@ -91,11 +93,14 @@ fn extract_title(body: &str) -> String {
     out.trim().to_string()
 }
 
+/// 常量正则：匹配 `id="..."` 锚点（仅编译一次，避免每章渲染重复编译）。
+static ID_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"id="([^"]+)""#).expect("id 常量正则"));
+
 /// 抽取正文内所有 `id` 锚点（去重、保序）。
 fn extract_anchors(body: &str) -> Vec<String> {
-    let re = regex::Regex::new(r#"id="([^"]+)""#).expect("id 匹配正则");
     let mut out = Vec::new();
-    for caps in re.captures_iter(body) {
+    for caps in ID_RE.captures_iter(body) {
         let id = caps.get(1).expect("id").as_str().to_string();
         if !out.contains(&id) {
             out.push(id);

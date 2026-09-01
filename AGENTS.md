@@ -43,6 +43,7 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo audit`
 - `cargo audit`（需 `cargo install cargo-audit --locked`）是硬性要求（D-12），退出码非 0 即失败
 - 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`
+- 提交前用环境中对应语言的 skill 审查改动（改了什么语言就用该语言的 skill），按审查结果修正后再提交
 
 ## 工具链钉版
 
