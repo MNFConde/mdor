@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-01 · M2 收尾杂项归档（AGENTS.md 状态行 / CI lcov artifact / audit 现状 / proptest 定案落表）
+
+- 根 `AGENTS.md` 状态行 M1 → M2 全量验收（此前 M2 七提交均未触及，违反协作约定项已补）；plan.todo M2 proptest 试点按 26-08-31 定案标 ✘ 不激活 + 表头补 M3
+- CI lcov「归档」名实一致化：coverage 步骤后接 `actions/upload-artifact@v7`（lcov-report，if-no-files-found: error）；v7 为当前最新主版本（v6+ 需 runner ≥2.327.1，GitHub 托管 runner 满足）
+- cargo audit 现状归档：14 条 allowed warnings 非白名单（presenter 对非 deny warning 的固定措辞，仓库从未配 audit.toml）、全部源自 dioxus 桌面依赖链（GTK3 停维 ×9 + glib/fxhash/paste/proc-macro-error + rand 0.7），性质非漏洞 + 平台错位（Linux 桌面链不进发布产物）+ 上游无修复 → 不 deny 不 ignore；语义与全景表沉淀 [cargo-audit-behavior.md](cargo-audit-behavior.md)
+- 门禁：fmt/clippy/test 77 绿/audit exit 0（fetch 走代理）+ check-links.py 通过
 ## 2026-08-31 · M2 StaticSiteSource 全量落地（镜像/TOC/落库/更新闭环 + 真实站点验收）
 
 - M2 五切片一天内闭环（依赖钉版 → 边界/镜像 → TOC → 落库/碰撞 → 门面接线/更新）：`mirror_site` 递归镜像（同源+路径前缀双限界+四重限额）、`build_toc`（mdBook ≥0.5 `toc.html` 与 0.4.x 内嵌双形态）、`snapshot_pipeline`（D-08 检测前置：stage 比对 tree oid 再决定 commit）、`scan_case_collisions` + `SnapshotMeta.case_collisions` 落库、`AppService::add_book`/`update_book` 接线；tests/ 目录首建（httpmock 14 集成测试）；真实站点验收 TRPL 175 文件/114 页/25 章（#[ignore] 手工跑）

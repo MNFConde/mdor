@@ -1,4 +1,4 @@
-mdor 项目里程碑实施计划（M0/M1/M2）:
+mdor 项目里程碑实施计划（M0/M1/M2/M3）:
     依据：doc/project.md §10 里程碑 / §12 文件树；doc/env.md §3、§2.3
     推进顺序：先 core 后窗口；每阶段以质量门禁收尾（fmt/clippy/test/audit）
     符号：☐ 待办 / ✔ 完成 / ✘ 取消；优先级 @critical / @high / @low；完成可附 @done(yy-mm-dd HH:MM)
@@ -120,7 +120,8 @@ M2 StaticSiteSource 静态站镜像:
         ✔ tests/ 集成测试目录：`crates/mdor-core/tests/`（tests/common/mod.rs 共享工具，pub(crate) 资产不外借）@done(26-08-31 18:00)
         ✔ httpmock 集成测试（static_site_mirror.rs 11 例 + app_service_flow.rs 门面级 3 例：添加/更新/跳过/迁移）@done(26-08-31 18:00)
         ✔ cargo-llvm-cov 覆盖率接入：本地 cargo llvm-cov（总 90.7%、static_site 94.9%）；CI 挂 taiki-e/install-action + --lcov @done(26-08-31 18:00)
-        ☐ property-based 试点（proptest）：versioning roundtrip（tag ref ↔ 序号解析）@low
-            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点（未触发，不激活）
+        ✘ property-based 试点（proptest）：versioning roundtrip（tag ref ↔ 序号解析）@low
+            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点（未触发，不激活——26-08-31 定案，留 M5 主受益点）
         ✔ 真实 mdBook 站点离线镜像验收（doc.rust-lang.org/book，#[ignore] 手工跑：175 文件 / 114 页 / TOC 25 章）@done(26-08-31 18:00)
         ✔ 收尾：门禁全绿（fmt/clippy/test 77 绿/audit exit 0）+ plan.todo + cairn/LOG + ROADMAP 更新 @done(26-08-31 18:00)
+        ✔ 收尾补充（26-09-01）：根 AGENTS.md 状态行更新为 M2 落地；CI lcov 报告接入 upload-artifact 归档；cargo audit 现状归档（14 条 allowed warnings = dioxus 桌面依赖链 unmaintained/unsound，默认不 deny、非漏洞，详见 cairn/cargo-audit-behavior.md）；proptest 试点按定案标 ✘ 不激活 @done(26-09-01)

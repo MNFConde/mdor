@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M1 已落地并全量验收**——Cargo workspace（`mdor-core` + `mdor-app`）、core 业务骨架（error/model/store 持久化 / source trait / migration / services 薄门面+命令 / versioning+gix 存储基座 / tracing 门面）、书架 UI 渲染 library.json 真实数据、ci.yml core-quality **CI 实跑全绿（41 测试）**；D-09 gix 三坑两端实测敲定；下一里程碑 M2（StaticSiteSource 静态站镜像）按 plan.todo 推进（里程碑定义/验收见 [doc/project.md §10](doc/project.md#10-里程碑) 与 [cairn/ROADMAP.md](cairn/ROADMAP.md)，plan.todo 仅执行任务表）；仓库另含 `doc/` 规划文档。
+mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M2 已落地并全量验收**——StaticSiteSource 递归镜像（同源+路径前缀双限界+四重限额）+ TOC 构建、自建 git 链快照落库（D-08 检测前置 + tree 级大小写碰撞检测）、`AppService::add_book`/`update_book` 接线、httpmock 集成测试 14 例 + fixtures/mdbook-static、cargo-llvm-cov 覆盖率接入；本地门禁 77 测试绿 + 覆盖率 90.7%（static_site 94.9%），真实站点 TRPL 验收（175 文件/114 页/25 章）通过；下一里程碑 M3（阅读器：内容抽取、资源协议、目录抽屉、滚动进度）按 plan.todo 推进（里程碑定义/验收见 [doc/project.md §10](doc/project.md#10-里程碑) 与 [cairn/ROADMAP.md](cairn/ROADMAP.md)，plan.todo 仅执行任务表）；仓库另含 `doc/` 规划文档。
 
 > 本项目使用 Project Cairn 组织项目知识：Cairn 全套规则（初始化配置/阅读顺序/文档职责/冲突仲裁/知识库消费反射/知识沉淀规则）见 `cairn/AGENTS.md`。
 > 本机装有 project-cairn skill 且仓库存在 `cairn/` 时生效；否则视为不适用，跳过。
