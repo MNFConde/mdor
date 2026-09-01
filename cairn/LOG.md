@@ -1,6 +1,14 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-08-31 · M2 StaticSiteSource 全量落地（镜像/TOC/落库/更新闭环 + 真实站点验收）
+
+- M2 五切片一天内闭环（依赖钉版 → 边界/镜像 → TOC → 落库/碰撞 → 门面接线/更新）：`mirror_site` 递归镜像（同源+路径前缀双限界+四重限额）、`build_toc`（mdBook ≥0.5 `toc.html` 与 0.4.x 内嵌双形态）、`snapshot_pipeline`（D-08 检测前置：stage 比对 tree oid 再决定 commit）、`scan_case_collisions` + `SnapshotMeta.case_collisions` 落库、`AppService::add_book`/`update_book` 接线；tests/ 目录首建（httpmock 14 集成测试）；真实站点验收 TRPL 175 文件/114 页/25 章（#[ignore] 手工跑）
+- 坑沉淀：① **html5ever `noscript` 降级**——`<noscript>` 内元素被解析为转义文本节点，mdBook ≥0.5 的 `<iframe src="toc.html">` 在其内，选择器抓不到，需正则兜底从文本找回（[gix-windows-pitfalls.md] 同类：库语义必须实测）；② **PS 5.1 中文再咬人**——`-replace`/`Set-Content` 往 .rs 写中文即编码损坏（字符串原地变 mojibake 且无法逆向修复，只能整体重写），powershell-encoding 坑 8 的变体，对策同：中文一律走 Write 工具/UTF-8 文件；③ **httpmock 同路径多 mock 匹配序不定**（HashMap 迭代序），测试重灌 mock 必须 `server.reset()`；④ **`#[cfg(test)]` 代码对集成测试不可见**——集成测试链接的 lib 编译不带 `cfg(test)`，诊断 eprintln 失效的根因
+- 定案回写：镜像边界「同源+路径前缀」入 project.md §11 新块记；D-08 检测前置实现（stage_tree/commit_tree 拆分，跳过空提交不写对象）——D-08 语义无变化，仅实现注记
+- 覆盖率：cargo-llvm-cov 接入（总 90.7% / static_site 94.9%），CI core-quality 挂 `--lcov`
+- 门禁：fmt/clippy/test 77 绿（63 lib + 14 集成）/ audit exit 0 / check-links.py 通过；真实站点验收经 `--ignored` 手工执行通过
+- 坑沉淀展开落盘：[powershell-encoding.md](powershell-encoding.md) 补坑 9（cmdlet 直接读写中文源码 = 原地 mojibake 不可逆）/ [gix-windows-pitfalls.md](gix-windows-pitfalls.md) 补检测前置模式（M4 复用）/ 新建 [html-scraper-pitfalls.md](html-scraper-pitfalls.md)（noscript 降级 + 嗅探 + :scope 实测，M3 复用）与 [rust-testing-pitfalls.md](rust-testing-pitfalls.md)（httpmock 匹配序 / cfg(test) 不可见，M4/M5 复用）
 ## 2026-08-31 · Rust 三 skill 对照审查落地三项修复（错误语义/missing_docs/测试工具去重）
 
 - 背景：对 `crates/` 做 rust-best-practices / rust-async-patterns / rust-testing 三 skill 符合度审查（约 90% / 95% / 80%），用户确认三项差距后全部执行。

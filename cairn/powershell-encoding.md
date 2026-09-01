@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "PowerShell 5.1 编码坑三向记录：读侧——Get-Content 默认按 ANSI/GBK 误读无 BOM UTF-8；写侧——>/Out-File 默认输出 UTF-16 LE、Set-Content -Encoding UTF8 带 BOM；管道侧——捕获原生命令 UTF-8 stdout 按 GBK 解码致内容导出即损坏（不可逆）；stdin 侧——管道写原生命词 stdin 用 $OutputEncoding(默认 ASCII) 中文 → ? 字节级损坏；安全路径 = .NET API 显式 UTF8Encoding($false) + cmd /c 直通原始字节 + -F <UTF-8文件>；损坏可经 git 历史字节级恢复"
+summary: "PowerShell 5.1 编码坑三向记录：读侧——Get-Content 默认按 ANSI/GBK 误读无 BOM UTF-8；写侧——>/Out-File 默认输出 UTF-16 LE、Set-Content -Encoding UTF8 带 BOM；管道侧——捕获原生命令 UTF-8 stdout 按 GBK 解码致内容导出即损坏（不可逆）；stdin 侧——管道写原生命词 stdin 用 $OutputEncoding(默认 ASCII) 中文 → ? 字节级损坏；写侧扩展——cmdlet 直接读写中文源码文件（-replace+Set-Content）同族原地 mojibake 不可逆；安全路径 = .NET API 显式 UTF8Encoding($false) + cmd /c 直通原始字节 + -F <UTF-8文件> + agent Write 工具；损坏可经 git 历史字节级恢复"
 tags: [cairn, powershell, encoding, utf8, windows, tooling]
 contains: [lesson, procedure, experience]
 created: "2026-08-21"
-updated: "2026-08-29"
+updated: "2026-08-31"
 related: [windows-scripts.md]
 authoring_mode: ai_generated
 ---
@@ -25,6 +25,7 @@ authoring_mode: ai_generated
 6. **PS 5.1 `>` 重定向 / `Out-File` 默认输出 UTF-16 LE（带 `FF FE` BOM）**（2026-08-23）：导出的 opencode 会话备份 json 被 UTF-16 LE 写出，opencode 导入器按 UTF-8 解析即报「Unrecognized token '�'」——首个字节就是 BOM。读侧教训 1 的镜像坑：PS 5.1 各 cmdlet 默认编码不一致，任何「导出/落盘再被别的程序消费」的文件都不能依赖默认编码。
 7. **PS 管道捕获原生命令的 UTF-8 stdout 按 GBK 解码，内容导出即损坏（不可逆）**（2026-08-23）：`opencode export <id> > file` 在 PS 5.1 下执行——opencode 输出 UTF-8 字节流，PS 按 [Console] 输出编码（GBK）解码成字符串再以 UTF-16 落盘，中文正文被固化为 GBK 假汉字 + PUA 私用区字符（U+E003 等，实测 652 个）+ `?` 替换。这是教训 2 的实例：事后把容器转回 UTF-8 也只是「正确编码的错误内容」，导入器 JSON 校验都过不了。**容器编码可修，管道损坏不可逆**——必须在捕获环节就绕开 PS 解码层。
 8. **PS 5.1 管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），中文 → 字面 `?` 字节级损坏**（2026-08-29）：`@'…中文…'@ | git commit -F -` 写提交信息，每个中文字符都成了 0x3F（`cmd /c` 直读原始字节仍是 `?` = 真损坏非显示伪影）。与坑 7 同族但**方向相反**：stdout 捕获是「解码层误读」，stdin 写是「编码层丢弃」（ASCII 表达不了 CJK 直接替换成 `?`）。对策：中文内容别走 PS 管道喂原生命词——用 UTF-8 无 BOM 文件 `-F <file>`（如本会话 `git commit --amend -F <utf8文件>` 修复）；或先 `$OutputEncoding = [System.Text.Encoding]::UTF8` 再管道。提交后校验：`cmd /c "git log -1 --format=%B"` 不得含 `?`（显示层乱码≠损坏，见教训 4）。
+9. **PS 5.1 `-replace` / `Set-Content` 直接读写中文源码文件 = 原地 mojibake 不可逆**（2026-08-31）：对 `.rs` 源码做 `$c = Get-Content -Raw; $c.Replace(...); Set-Content -Encoding UTF8` 组合，中文注释与字符串字面量当场损坏（字符串原地变 mojibake / 半字符粘连），且与坑 1-3 叠加后**无法逆向修复**——只能用 agent 的 Write 工具整体重写文件。与坑 8 同族但**另一方向**：坑 8 是管道喂原生命令（stdin 编码层丢弃），坑 9 是 cmdlet 直接读写文件（cmdlet 层编码错乱）。**对策统一且更强**：中文内容写文件一律走 agent Write 工具（等效 .NET API 三步 `ReadAllText(path, UTF8)` → 内存改 → `WriteAllText(path, s, UTF8NoBOM)`）；`-replace` + `Set-Content` 组合对含中文的任何文件都禁用，无论扩展名。
 
 ## 当前结论
 
@@ -38,6 +39,7 @@ authoring_mode: ai_generated
 - **原生命令输出落盘用 cmd 直通原始字节**：`cmd /c "opencode export <id> > <file>"`——cmd 的 `>` 不解码 stdout，UTF-8 原样落盘。2026-08-23 实证对照：PS 管道版 652 个 PUA 字符报废；cmd 直通版 JSON 解析通过、4904 个汉字完好（残留 U+FFFD 仅在工具输出的二进制/进度条类内容里，不伤结构）。与字节级恢复姿势的 `cmd /c "git show …"` 同一原理。
 - **字节级恢复姿势**：`cmd /c "git show <branch>:<path> > <file>"` 取原始 blob 字节（PowerShell 管道会再编码，不可用）；用 `git hash-object <file>` 对比 `git ls-tree` 的 blob SHA 验证字节一致。
 - **正则替换注意**：`-replace` 的 `\s*` 会吞掉标题后的空行；替换串中 `$1` 后紧跟数字会被解析成多位组号（用 `${1}` 消歧）。
+- **含中文文件读写安全路径只有一条**（坑 9，2026-08-31 补）：agent Write 工具，或 .NET API 三步（显式 UTF8 读 → 内存改 → UTF8NoBOM 写）；`-replace` + `Set-Content` 组合对含中文的任何文件（.md/.rs/.json 均然）一律禁用。
 
 ## 实践指南
 

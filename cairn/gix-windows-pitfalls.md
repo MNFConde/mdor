@@ -1,11 +1,11 @@
 ---
 type: project_topic
 status: active
-summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案；D-09 已两端实测敲定（Linux 2026-08-27 / Windows 2026-08-30，碰撞 checkout 静默覆盖实证）；gix 0.87 API 实测要点（平台无关，M2/M4 复用，含 edit_reference reflog 身份坑）"
+summary: "gix 在 Windows 的坑（长路径/大小写/autocrlf 配置规避）与 Windows 文件系统语义坑（保留设备名/路径分隔符/fixtures）、变更检测定案；D-09 已两端实测敲定（Linux 2026-08-27 / Windows 2026-08-30，碰撞 checkout 静默覆盖实证）；gix 0.87 API 实测要点（平台无关，M2/M4 复用，含 edit_reference reflog 身份坑、快照落库检测前置模式）"
 tags: [mdor, gix, git, windows, autocrlf, versioning]
 contains: [lesson, decision, procedure]
 created: "2026-08-16"
-updated: "2026-08-30"
+updated: "2026-08-31"
 related: [diff.md, decisions.md]
 authoring_mode: ai_generated
 ---
@@ -53,6 +53,7 @@ mdor 以 gix（纯 Rust git 实现）为存储基座，每书一个 git 仓库�
 - **`gix::init(path)` 在 0.87 直接返回 `Repository`**（非 ThreadSafeRepository）；写对象用 `repo.write_blob`/`write_object`（返回 `Id`，`.detach()` 取 `ObjectId`）；引用操作走 `repo.edit_reference(RefEdit)`（`refs/mdor/versions/...` 自定义 ref 用此；`tag_reference` 只写 `refs/tags/` 不适合私有版本命名空间）。
 - **commit 对象类型**：`gix::objs::Commit`（`parents` 是 smallvec，`vec![id].into()` 即可）；签名 `gix::actor::Signature` + `gix::date::Time::now_local_or_utc()`；树条目须按 git 树序排序（目录名按「名 + /」参与字节比较）。
 - **`edit_reference` 的 reflog committer 依赖环境 git 身份（2026-08-30 CI 实跑抓到，产品级）**：`repo.edit_reference(edit)` 写 reflog 时从 git config 层级解析身份（`committer.name` → `user.name` → env，gix `identity.rs committer()`）；gix 对 `HEAD` **自动创建 reflog**（`should_autocreate_reflog`），无身份环境（CI runner / Android 真机，无 git 全局配置）`set_head` 即报 `MissingCommitter`。本机/VM 配了 `user.name` 被掩盖——**凡无 git 全局身份的环境都炸**。`refs/mdor/versions/*` 不在自动创建清单，故 `create_version_tag` 不触发。修复：`repo.edit_references_as([edit], Some(sig_ref))` 显式指定身份（`SignatureRef.time` 用 `Time::format_or_unix(Format::Raw)` 产出 owned String）；mdor 已钉 `MDOR_IDENTITY_NAME/EMAIL` 常量与 commit 签名同源 + 回归测试 `reflog_writes_mdor_identity`（481b8df）。**M2/M4 任何自建 ref 操作都走此模式**。
+- **快照落库的检测前置模式（2026-08-31 M2，D-08 实现注记）**：`commit_workdir` 是 stage+commit+checkout 一体，无法在写 commit **前**比对内容——而 D-08「跳过空提交」要求相等时连 commit 对象都不写（写了就白白膨胀对象库）。拆出两步：`stage_tree(files) -> tree oid`（只写 blob+tree，不 commit）与 `commit_tree(tree, msg, parents)`（以现成 tree 落 commit）；编排层先 stage、与 parent 的 tree oid 比对，相等即返回「未变化」，不同才 commit → tag → set_head → checkout。**M4 GitHubSource 复用同一模式**（上游 fetch 前先比树，避免无意义的新 commit）。
 
 ## 实践指南
 
