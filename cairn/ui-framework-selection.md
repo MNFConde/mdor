@@ -42,6 +42,9 @@ Dioxus 0.7 `mdor-app` 四屏接线落地时可复用的模式与坑（2026-09-02
 4. **`dangerous_inner_html: html`** 注入正文（Dioxus 保留 `dangerous_inner_html` 提醒 XSS 面；本仓库文本来自本地镜像书，白名单已由 core 校验）。
 5. **rsx 模板 `for` 体内不能写裸 `let` 语句**：`for a in &v { let x = a.clone(); ... }` 报 `expected identifier`；需在进 rsx 前预物化 owned 数据（如 `Vec<(id,title,url,version)>`），或把每项抽成独立子组件（`AnchorItem`/`TocNode`）让闭包各自捕获。
 6. **`match` 分发给不同屏的类型一致化**：每个 `#[component]` 生成独立的 `Xxx_completions::Component` 类型，`match` 臂直接 `XxxScreen {}` 类型不匹配；让 `App` 返回 `Element`，每个 `match` 臂 `rsx! { XxxScreen {} }`（或调用组件函数 `XxxScreen()`）归一为 `Element`，或用外层包裹。
+7. **`Signal<T>` 是 `Copy`，`.clone()` 冗余**：`let mut message = message.clone();`（`message: Signal<String>`）触发 clippy `clone_on_copy`；直接 `let mut message = message;` 即可。读 `Signal` 值用 `*busy.read()` 而非 `.clone()`（`busy: Signal<bool>`）。clippy 对 `use_signal` 产物会抓这条，勿在闭包/事件里无谓 clone。
+8. **在非组件上下文（裸函数 `open_book`/`switch_chapter`）改用 `spawn(async move {...})` 调异步门面**：`spawn` 需当前 runtime/scope 上下文，从事件闭包调用可行；`GlobalSignal` 读写同样需 runtime，故 `READER.with_mut`/`NAV.with_mut` 都应在事件闭包或 spawn 池内执行，不要在组件顶层同步改后再 await（`open_book` 先 `with_mut` 重置占位 → `spawn` 内渲染后回填）。
+9. **`AppService` 门面异步方法（`open_reading`/`add_book`/`render_chapter`）经 `spawn` 调**，失败仅打日志、UI 停留原屏（薄门面不致命语义），不要在 UI 线程同步阻塞（`render_chapter` 含 `std::fs::read`，大章节可用 `spawn_blocking`）。
 
 ## 实践指南
 

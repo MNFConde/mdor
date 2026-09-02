@@ -5,7 +5,7 @@ summary: "cargo-audit 0.22.x 无漏洞时静默成功：不打印任何结语、
 tags: [cairn, cargo-audit, quality-gate, tooling]
 contains: [lesson, experience]
 created: "2026-08-19"
-updated: "2026-09-01"
+updated: "2026-09-02"
 related: [env.md, decisions.md]
 authoring_mode: ai_generated
 ---
@@ -25,6 +25,13 @@ authoring_mode: ai_generated
 - 质量门禁中 audit 的通过判据 = **退出码 0**，而非输出结语。命令无报错跑完 + `exit 0` 即过。
 
 ## allowed warnings 语义与现状归档（2026-09-01）
+
+### 运行环境依赖下载咨询库（2026-09-02 补记）
+
+- `cargo audit` **每次需从 GitHub 拉取 advisory-db**：`Fetching advisory database from https://github.com/RustSec/advisory-db.git` 是正常步骤；失败时报 `git operation failed: failed to prepare fetch` + `error sending request for url ...` + **`exit 2`**（运行出错，非「发现漏洞」的 exit 1）。此环境（WSL 无网 / 代理受限仓库）曾连续两次 fetch 失败。
+- **`--db <path>` 不解决离线问题**：`cargo audit --db "$CARGO_HOME/advisory-db"` 仍会先尝试 fetch 再失败；`cargo-audit` 的 `--db` 是**写/读私有 advisory 数据库路径**，仍依赖能联网拉取官方库初始化/更新。本地缓存 `$CARGO_HOME/advisory-db` 存在也不保证不 fetch。
+- **对策**：离线/受限网环境无法跑 audit 时，不能以「有没有输出」或「失败即通过」自欺——应①复用最近一次联网成功的 audit 结论（如切片3 已验证的 14 allowed warnings），②注明「audit 因 fetch advisory-db 失败未跑，沿用既有基线」，③勿把网络失败误报为「门禁通过」。真正判定 = 加载到 advisory 库后执行成功且 exit 0。
+- **门禁语义**：`exit 2`（运行出错）≠ `exit 1`（发现漏洞）；两者都应视为「未通过」，只有能完成扫描且 `exit 0` 才是真正绿。
 
 ### 语义（cargo-audit 源码实证）
 

@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · 补沉淀切片4 会话遗漏信息（Signal Copy / audit 网络坑）
+
+- 按 project-cairn 校核切片4 会话：发现 `ui-framework-selection` 缺「`Signal<T>` 是 Copy，`.clone()` 触发 clippy `clone_on_copy`（读用 `*sig.read()`）」、rsx 无谓 clone、`spawn` 调异步门面与 GlobalSignal 写时机三条；`cargo-audit-behavior` 缺「fetch advisory-db 网络失败 → exit 2，`--db` 不解决离线」坑。
+- 补写：[ui-framework-selection.md](ui-framework-selection.md)「M3 屏幕实现实践」扩到第 7/8/9 条（Signal Copy / 非组件上下文 spawn / 异步门面）；[cargo-audit-behavior.md](cargo-audit-behavior.md) 补「运行环境依赖下载咨询库」段（fetch 失败 exit 2、`--db` 仍先 fetch、离线复用基线对策）。
+- 均更新 `updated` 日期至 2026-09-02。
+
 ## 2026-09-02 · M3 切片4 阅读屏与目录抽屉落地（AppRoute 路由 + 四屏）
 
 - 屏幕导航：`state.rs` 手写 `GlobalSignal<AppRoute>`（Library/AddBook/Reader）+ `GlobalSignal<ReaderState>`（当前书籍/章节/进度），不引入 dioxus-router（决策见 [doc/decisions.md D-17](../doc/decisions.md#d-17-模块内路由取舍)）。
