@@ -1,6 +1,16 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · M3 切片4 阅读屏与目录抽屉落地（AppRoute 路由 + 四屏）
+
+- 屏幕导航：`state.rs` 手写 `GlobalSignal<AppRoute>`（Library/AddBook/Reader）+ `GlobalSignal<ReaderState>`（当前书籍/章节/进度），不引入 dioxus-router（决策见 [doc/decisions.md D-17](../doc/decisions.md#d-17-模块内路由取舍)）。
+- 新增 `app.rs`（按 NAV 分发的根组件，`match` 各臂归一为 `Element`）+ `screens/library|reader|add_book` + `components/toc_drawer`。
+- reader：`dangerous_inner_html` 注入正文；滚动容器 `onscroll` 用 `ScrollData` 算 `scroll_top/(scroll_height-client_height)` 节流存进度；切章先 `save_progress` 再 `render_chapter`。
+- toc_drawer：Dioxus 自绘 TOC 树（子章节整章切换）+ 页内锚点经 `use_window().webview.evaluate_script` 的 `scrollIntoView` 跳转。
+- core：`AppService` 补 `render_chapter(book_id, chapter_path)` 公开方法（复用 `render_chapter_from_workdir`，含穿越拒绝），供目录切章/切章前存进度复用。
+- 门禁全绿：fmt/clippy -D warnings/test（115 通过，含 app 单测 10 + core 89 + 16 集成）；audit 无新依赖（网络 fetch advisory-db 失败，沿用切片3 基线 14 allowed）。
+- 提交 `75d0867`（code）+ `376ad8d`（D-17 docs）；切片4 代码项全部完成，桌面端到端运行验证移交用户；切片5 自适应布局为 M3 收尾待办。
+- 实现模式与坑沉淀 [ui-framework-selection.md](ui-framework-selection.md)「M3 屏幕实现实践」（use_window eval / onscroll 滚动 / rsx for 裸 let / match 归一）。
 ## 2026-09-02 · M3 切片3 本地资源协议落地（tiny_http + LocalHttpServer + PORT 注入）
 
 - `[workspace.dependencies]` 钉 `tiny_http 0.12.0`；新增 `mdor-app/src/local_http.rs`：`LocalHttpServer::bind("127.0.0.1:0")` 回环动态端口 + 独立 `std::thread`（B1）+ `Cache-Control: no-store`（B6）+ 经 core `resources.rs` 的 `resolve_local_url`/`sanitize_relative` 双重穿越拦截（B5，越界 403/404）。

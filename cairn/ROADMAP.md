@@ -1,6 +1,6 @@
 # mdor 路线图
 
-**当前焦点**：M2 已落地并全量验收（StaticSiteSource 递归镜像 + TOC 构建 + 场景 2 自建链落库 + tree 级大小写碰撞检测落库 + add_book/update_book 门面接线；httpmock 集成测试 14 例；真实站点 TRPL 验收通过；77 测试绿 + 门禁全绿 + 覆盖率 90.7%）；下一里程碑 **M3**（阅读器：内容抽取、资源协议、目录抽屉、滚动进度）。里程碑详表见 `doc/project.md` §10。
+**当前焦点**：M3 切片4 已落地（阅读屏 + 目录抽屉 + 添加书籍入口 + AppRoute 手写路由 + core `render_chapter` 公开方法，115 测试绿 + 门禁全绿）；**M3 尚未收官**——切片5 自适应布局（断点 600px）待做。M2 已落地并全量验收（StaticSiteSource 递归镜像 + TOC 构建 + 场景 2 自建链落库 + tree 级大小写碰撞检测落库 + add_book/update_book 门面接线；httpmock 集成测试 14 例；真实站点 TRPL 验收通过）。里程碑详表见 `doc/project.md` §10。
 
 ## 里程碑
 
