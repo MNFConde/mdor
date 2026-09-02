@@ -5,8 +5,8 @@ summary: "跨平台 UI 框架横向对比背景知识：Tauri/Electron/Flutter/�
 tags: [mdor, dioxus, tauri, electron, flutter, ui-framework, cross-platform]
 contains: [decision, lesson]
 created: "2026-08-23"
-updated: "2026-09-02"
-related: [webview-host-differences.md, decisions.md, local-resource-channel.md]
+updated: "2026-09-03"
+related: [webview-host-differences.md, decisions.md, local-resource-channel.md, skills-manager-cli.md]
 authoring_mode: ai_generated
 ---
 # 跨平台 UI 框架横向对比
@@ -45,6 +45,14 @@ Dioxus 0.7 `mdor-app` 四屏接线落地时可复用的模式与坑（2026-09-02
 7. **`Signal<T>` 是 `Copy`，`.clone()` 冗余**：`let mut message = message.clone();`（`message: Signal<String>`）触发 clippy `clone_on_copy`；直接 `let mut message = message;` 即可。读 `Signal` 值用 `*busy.read()` 而非 `.clone()`（`busy: Signal<bool>`）。clippy 对 `use_signal` 产物会抓这条，勿在闭包/事件里无谓 clone。
 8. **在非组件上下文（裸函数 `open_book`/`switch_chapter`）改用 `spawn(async move {...})` 调异步门面**：`spawn` 需当前 runtime/scope 上下文，从事件闭包调用可行；`GlobalSignal` 读写同样需 runtime，故 `READER.with_mut`/`NAV.with_mut` 都应在事件闭包或 spawn 池内执行，不要在组件顶层同步改后再 await（`open_book` 先 `with_mut` 重置占位 → `spawn` 内渲染后回填）。
 9. **`AppService` 门面异步方法（`open_reading`/`add_book`/`render_chapter`）经 `spawn` 调**，失败仅打日志、UI 停留原屏（薄门面不致命语义），不要在 UI 线程同步阻塞（`render_chapter` 含 `std::fs::read`，大章节可用 `spawn_blocking`）。
+
+## Dioxus skill 基准
+
+**Dioxus 开发以 `dioxus-knowledge-patch` 为唯一基准，独立完整。** 该 skill 的 components-reactivity.md 主题参考已覆盖 0.7 的 signals/store/async（hooks/tasks/resources/suspense/errors/events）。`dioxus-modern` 仅为可选增益——其 tailwind 集成与 templates/examples 样板项目未用，非必需；两者不并存，只维护 knowledge-patch 一个，不再并行第二个 Dioxus skill。
+
+- 触发：创建/迁移/调试/测试/打包 Dioxus 应用、0.7 状态管理（信号/store/资源/异步）、`document::eval` 桌面注入、自定义 renderer、迁移与破坏性变更时，先读 knowledge-patch 对应主题参考再动手。
+- 其余 Dioxus skill 因对应 0.6、强依赖 dioxus-router、或 UI 栈不匹配（daisyui/shadcn/tailwind）均不采用：`dioxus-ui-ux`、`rust-dioxus`、`rust_dioxus_framework`、`dioxus-docs-kit-integration`、`forge-idiomatic-engineer`（Axum+SQLx，与 mdor 无关）。它们存在与否不影响本基准。
+- 本条只记录名字，不记录安装路径（在 agent 可读环境中按名字执行；没有则跳过，不影响工作流）。
 
 ## 实践指南
 

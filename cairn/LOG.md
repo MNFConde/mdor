@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-03 · 确立 Dioxus skill 基准（knowledge-patch 为唯一基准）
+
+- 评估 7 个 dioxus skill 与若干 a11y skill 后，确立：**Dioxus 开发以 `dioxus-knowledge-patch` 为唯一且完整基准**（components-reactivity.md 已覆盖 0.7 的 signals/store/async）；`dioxus-modern` 仅为可选增益（tailwind 集成与 templates/examples 未用），非必需，不并行维护。
+- 其余 5 个均不采用：dioxus-ui-ux / rust-dioxus / rust_dioxus_framework（对应 0.6 或过浅）、dioxus-docs-kit-integration（强依赖 dioxus-router，冲突 D-17）、forge-idiomatic-engineer（Axum+SQLx 无关）。
+- 落点：[ui-framework-selection.md](ui-framework-selection.md) 新增「Dioxus skill 基准」节；根 [AGENTS.md](../AGENTS.md) 质量门禁补「Dioxus 一律以 knowledge-patch 为准」指针；只记名字不记路径（按名执行，无则跳过）。
+
 ## 2026-09-02 · 补沉淀切片4 会话遗漏信息（Signal Copy / audit 网络坑）
 
 - 按 project-cairn 校核切片4 会话：发现 `ui-framework-selection` 缺「`Signal<T>` 是 Copy，`.clone()` 触发 clippy `clone_on_copy`（读用 `*sig.read()`）」、rsx 无谓 clone、`spawn` 调异步门面与 GlobalSignal 写时机三条；`cargo-audit-behavior` 缺「fetch advisory-db 网络失败 → exit 2，`--db` 不解决离线」坑。
