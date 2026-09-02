@@ -149,6 +149,21 @@ impl AppService {
         Ok(book)
     }
 
+    /// 按指定章节渲染正文（§6.5，M3 目录抽屉切章入口）。
+    ///
+    /// 复用 [`Self::render_chapter_from_workdir`] 从工作区 `site/<chapter>` 读取字节并渲染，
+    /// 供 UI 在「切章」时流式渲染目标章节；若章节含穿越即 `Unsupported`。
+    /// 注意：纯渲染不读/不写进度，进度保存走 [`Self::save_progress`]。
+    pub fn render_chapter(&self, book_id: &str, chapter_path: &str) -> Result<RenderedChapter> {
+        let library = self.ctx.store.library().load()?;
+        let book = library
+            .books
+            .into_iter()
+            .find(|b| b.id == book_id)
+            .ok_or_else(|| Error::NotFound(format!("书籍 {book_id} 不在书架")))?;
+        Self::render_chapter_from_workdir(&self.ctx, &book, chapter_path)
+    }
+
     /// 打开阅读（SD-2 薄门面，§6.6）：读位置 + 定位；渲染注入 M3 填全。
     pub async fn open_reading(&self, book_id: &str) -> Result<OpenReading> {
         let start = Instant::now();
@@ -391,6 +406,61 @@ mod tests {
         assert!(matches!(
             service.open_reading("nope").await,
             Err(Error::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn render_chapter_renders_specified_chapter() {
+        let dir = temp_dir("appsvc_render");
+        let service = AppService::new(dir.clone()).unwrap();
+
+        let book = sample_book("https://example.com/render-book");
+        service
+            .ctx
+            .store
+            .library()
+            .save(&Library {
+                books: vec![book.clone()],
+            })
+            .unwrap();
+
+        // 在工作区 site/ 下写入一个含 <main> 的章节文件。
+        let site = service.ctx.store.books_root().join(&book.id).join("site");
+        std::fs::create_dir_all(&site).unwrap();
+        std::fs::write(
+            site.join("ch1.html"),
+            r#"<main id="content"><h1 id="标题">标题</h1><p>正文</p></main>"#,
+        )
+        .unwrap();
+
+        let rendered = service.render_chapter(&book.id, "ch1.html").unwrap();
+        assert!(rendered.html.contains("<h1"), "应渲染出标题");
+        assert_eq!(rendered.title, "标题");
+        assert!(
+            rendered.anchors.iter().any(|a| a == "标题"),
+            "应抽取到锚点: {:?}",
+            rendered.anchors
+        );
+    }
+
+    #[tokio::test]
+    async fn render_chapter_rejects_traversal() {
+        let dir = temp_dir("appsvc_render_trav");
+        let service = AppService::new(dir.clone()).unwrap();
+
+        let book = sample_book("https://example.com/render-book");
+        service
+            .ctx
+            .store
+            .library()
+            .save(&Library {
+                books: vec![book.clone()],
+            })
+            .unwrap();
+
+        assert!(matches!(
+            service.render_chapter(&book.id, "../secrets.txt"),
+            Err(Error::Unsupported(_))
         ));
     }
 

@@ -153,11 +153,12 @@ M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
         ✔ app 启动起服 + PORT 注入 AppService/AppContext（先于渲染确定并写入重写 URL，§6.5 PORT 来源；不常驻 Service，B8）@critical @done(26-09-02 23:30)
         ✔ 切片验证：app 单测覆盖字节返回/MIME/no-store/穿越（8 例含真实 socket 绑定测），越界 403/404；桌面子资源渲染确认移交切片4 阅读屏 @critical @done(26-09-02 23:30)
     切片4 阅读屏 + 目录抽屉（UI 四屏补全，§12 screens/）:
-        ☐ app.rs Router + state.rs GlobalSignal（当前书籍/版本）；书架 → 阅读 → 返回跳转 @high
-        ☐ screens/reader.rs：dangerous_inner_html 注入 + 滚动监听节流存进度 + 切章保存 @critical
-        ☐ 目录抽屉 components/：Dioxus 自绘 TOC（数据源 open_reading 返回 toc；子章节锚点跳转 heading_anchor）@high
-        ☐ screens/add_book.rs：URL 输入添加书籍（书架现无添加入口，桌面全流程必需；URL 探测/校验仍在 core）@high
-        ☐ 切片验证：桌面端到端（添加——真实站点或本地静态服务喂 fixtures/mdbook-static → 打开 → 目录跳转 → 滚动 → 重开进度恢复）@critical
+        ✔ core app_service.rs 补 render_chapter 公开方法（按指定章节渲染，目录抽屉切章/切章前存进度复用；复用 render_chapter_from_workdir）@high @done(26-09-02)
+        ✔ app.rs Router + state.rs GlobalSignal（当前书籍/版本）；书架 → 阅读 → 返回跳转 @high @done(26-09-02)
+        ✔ screens/reader.rs：dangerous_inner_html 注入 + 滚动监听节流存进度 + 切章保存 @critical @done(26-09-02)
+        ✔ 目录抽屉 components/：Dioxus 自绘 TOC（数据源 open_reading 返回 toc；子章节锚点跳转 heading_anchor）@high @done(26-09-02)
+        ✔ screens/add_book.rs：URL 输入添加书籍（书架现无添加入口，桌面全流程必需；URL 探测/校验仍在 core）@high @done(26-09-02)
+        ☐ 切片验证：桌面端到端（添加——真实站点或本地静态服务喂 fixtures/mdbook-static → 打开 → 目录跳转 → 滚动 → 重开进度恢复）@critical（代码就绪，桌面运行确认移交用户）
     切片5 自适应布局（§3.3，移动优先 + 桌面壳）:
         ☐ 断点 600px：≤600px 底部导航/全屏阅读/目录抽屉；≥600px 左侧固定侧边栏（书架 + 目录树）+ 顶部工具栏 @high
         ☐ 监听视口宽度变化即时切换导航壳（仅重建 UI 壳，AppService 句柄与阅读进度状态不丢）@high
