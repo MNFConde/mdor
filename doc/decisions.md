@@ -25,6 +25,7 @@
 | [D-13](#d-13-数据目录注入) | 数据目录注入；Android `getFilesDir()` / Windows exe 同目录（便携式） | 已决策 | [project.md §9](project.md#9-存储布局) |
 | [D-14](#d-14-单人仓库协作与外部贡献流程) | 单人仓库协作：直推 master 保线性 + 外部 PR squash 合入 | 已决策 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | [D-15](#d-15-ui-框架选型) | UI 框架 = Dioxus（RSX 单语言 Rust，WebView 渲染路线） | 已决策 | [project.md §1.2](project.md#12-技术栈) |
+| [D-17](#d-17-模块内路由取舍) | M3 屏幕导航 = 手写 AppRoute 枚举（不引入 dioxus-router 依赖链）；引入 dioxus-router 的触发条件与重评时机见正文 | 已决策 | M3 切片4 阅读屏；重评时机锚定 M5/M6 场景 |
 
 ---
 
@@ -487,6 +488,40 @@
 - WSLg 下 WebKitGTK 渲染偶发小毛病——触发时退到 ubuntu-dev VM 调试（其存在意义即此兜底）
 - VirtualBox 与宿主机模拟器的虚拟化栈共存（WHPX/AEHD 两种驱动模式）待实测，最坏情况退真机 USB 直通（不受虚拟化冲突影响）
 - ubuntu-dev VM 已完成系统安装（无人值守；版本与配置见 [env.md 开发环境拓扑](env.md#开发环境拓扑)），备用化最小配置（Guest Additions / sshd / Nix / 快照）在首次触发使用场景前补齐即可；安装过程踩坑沉淀于 [cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)
+
+## D-17 模块内路由取舍
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-09-02 | M3 切片4 阅读屏（`app.rs` / `state.rs`） |
+
+**背景**：M3 阅读器需要屏幕跳转（书架 → 阅读 → 返回），`plan.todo` 切片4 首条即「app.rs Router + state.rs GlobalSignal」。但 M3 阶段屏幕仅四屏、全部为平面跳转，无 URL 参数、无外部入口、无 URL 栏（桌面 WebView）。同时仓库有两条硬约束——版本依赖在根 `[workspace.dependencies]` 钉一次（扁平化，[D-12](#d-12-依赖与安全审计)）、`mdor-app` 只做「HTML 注入 + 交互」不掺业务编排（[project.md §12.1](project.md#121-关键设计决策)）。
+
+**决策**：M3 屏幕导航采用**手写 `AppRoute` 枚举**（放入 `state.rs` 的 `GlobalSignal`），**不引入 `dioxus-router` 依赖链**。`dioxus-router` 的价值主场是「URL 状态机」（历史 / URL 参数 / 深链 / 守卫），对本离线移动阅读器（当前路由状态本就常驻内存 GlobalSignal，无 URL 栏与外部唤起需求）增益薄弱。
+
+**依据**：
+
+- 当前跳转平面（书架/添加/设置/阅读），无需参数化路径；手写枚举 + `GlobalSignal` 即可表达，零新增依赖
+- `dioxus-router` 不在 `Cargo.lock`，引入会带 history / URL 同步等 feature 依赖进 workspace，与「版本钉一次、app 层薄」冲突
+- 仓库哲学强调把业务与渲染收敛进 core、UI 只做交互；自绘状态驱动的枚举更贴合该解耦，不引入框架级路由约定
+- M3 阶段阅读位置状态在内存 GlobalSignal，URL 无关；在线 Web 才有「URL 是状态单一事实源」需求
+
+### 引入 dioxus-router 的触发条件（满足任一即重评）
+
+1. **深链需要跨会话恢复/外部唤起**——M6 Android 自定义 scheme（如 `mdor-book://reader/{book_id}`）让系统 intent / 文件关联直达某章节，要求路由状态可被 URL 序列化
+2. **M5 多版本阅读，路径需带 `:version`**——路由变为 `reader/{book_id}/{version}/{chapter}` 三层参数 + 可选锚点；手写枚举需手工拆 `(book_id, version, chapter, anchor)`，dioxus-router 的类型化路径参数 + 嵌套路由正好覆盖
+3. **阅读位置成为单一事实源，需 URL↔状态自动双向同步**——要求 WebView 前进/后退走章节历史、或刷新后路由状态重放时，手写需自搭 history/恢复
+4. **路由需守卫或拦截**——如「未打开书籍不能进 reader」「版本不存在回退」，路由器有统一 route + redirect 机制
+
+### 重评时机
+
+> [!NOTE] 重评时机：**不做主动引入**。到 **M5（多版本 `:version` 参数）或 M6（Android 深链）对应场景真正产生价值点时**，再据上述触发条件做一次独立判断；届时以本 ADR 为基线，逐条核验触发条件是否成立再决定引入或维持手写。
+
+**影响 / 诚实成本**：
+
+- 手写 `AppRoute` 枚举本身是**纯应用层状态**，不违反「版本钉一次」「app 层薄」；代价是当触发条件出现时需迁移——但迁移面小（仅 `app.rs` 的路由分发），且 core 无感知
+- 4 屏平面跳转用手写最省；一旦产生参数化路径或深链，当前手写方案的有限性即暴露，属预期内成本，非设计缺陷
+- 本决策不排除将来版本升级时顺手引入 dioxus-router 的可能，但引入与否以触发条件为准，不因「框架更完整」而立项
 
 ---
 
