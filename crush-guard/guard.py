@@ -58,6 +58,10 @@ GIT_READONLY = {
     "status", "log", "diff", "show", "branch", "--version", "remote",
     "ls-files", "config", "rev-parse", "blame", "shortlog", "tag",
     "help", "describe",
+    # 无副作用只读/查询子命令（纯读，不带 write flag/重定向时不需确认）
+    "check-ignore", "show-ref", "for-each-ref", "cat-file", "ls-tree",
+    "diff-tree", "name-rev", "merge-base", "rev-list", "diff-index",
+    "diff-files", "check-ref-format",
 }
 GIT_SAFE_WRITE = {"add", "commit", "checkout", "switch", "restore", "mv", "rm"}
 GIT_DESTRUCTIVE = {
@@ -90,8 +94,31 @@ def word_list(node):
     return [c.word for c in node.parts if getattr(c, "kind", "") == "word"]
 
 
-def has_redirection(node):
-    return any(getattr(c, "kind", "") == "redirect" for c in node.parts)
+def has_writing_redirect(node):
+    """True if a redirect writes to a persistent file (>/>>/>|/<> to a real
+    path, or an fd-scoped write like 2> err.txt). Redirects that merely
+    discard output (>/dev/null, &>/dev/null) or duplicate/close an fd
+    (2>&1, 2>&-) have no persistent write side-effect, so they must NOT
+    force a confirm on an otherwise read-only command."""
+    for c in node.parts:
+        if getattr(c, "kind", "") != "redirect":
+            continue
+        rtype = getattr(c, "type", "")
+        # Input-only redirects (<, <<, <<<) never write.
+        if rtype in ("<", "<<", "<<<"):
+            continue
+        out = getattr(c, "output", None)
+        # FD dup / close: output is an int (2>&1) or '-' (2>&-).
+        if isinstance(out, int) or out == "-":
+            continue
+        target = getattr(out, "word", None)
+        if target is None:
+            target = str(out)
+        # Discard to a null device / close an fd: no file write.
+        if target in ("/dev/null", "null", "NUL", "nul", "-"):
+            continue
+        return True
+    return False
 
 
 def find_mutates(node):
@@ -284,7 +311,7 @@ def classify(sub_cmd):
     # --- Read-only commands --------------------------------------------------
     if bin_ in READONLY:
         # A read-only command writing via flag or redirection is NOT safe.
-        if has_write_flag(args) or has_redirection(sub_cmd):
+        if has_write_flag(args) or has_writing_redirect(sub_cmd):
             return "confirm"
         # find with -delete/-exec mutates files and bypasses the rm gate.
         if bin_ == "find" and find_mutates(sub_cmd):

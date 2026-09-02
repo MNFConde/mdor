@@ -1,6 +1,29 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · Crush bash 权限门审会确认清单补 git 只读子命令白名单
+
+- 用户点出「审查本会话确认过的命令是否真的需要确认」：逐条喂 `guard.decide()` 复核会话用过的命令，发现真正该 confirm 的是**执行任意代码的工具**（`uv`/`python`/`pytest`/`npm install`）与**写操作**（`git rm`/写文件重定向/rm），无副作用的纯读误伤成 confirm 即是 gap。
+- 发现的 gap（第 5 条）：`GIT_READONLY` 缺 `check-ignore`/`show-ref`/`for-each-ref`/`cat-file`/`ls-tree`/`diff-tree`/`name-rev`/`merge-base`/`rev-list`/`diff-index`/`diff-files`/`check-ref-format`——这些无副作用只读/查询子命令原落默认 confirm。**修法**：补进 `GIT_READONLY`（`has_write_flag`/重定向守卫仍保留 write 变体 confirm）。
+- 顺带补 `.gitignore` 规则 `/crush-guard/*.egg-info/` 并 `git rm --cached` 移除 `crush-guard/crush_guard.egg-info/`（uv pip install -e 生成的构建元数据，可再生成勿跟踪）。
+- test_guard.py 新增 13 例 git 只读子命令（77→90 全绿）；沉淀 [crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区第 4/5 条 + 方法论。
+- 门禁：90 例全绿；check-links.py 通过。
+
+## 2026-09-02 · Crush bash 权限门 guard.py 增加回归测试（test_guard.py）
+
+- 新增 `crush-guard/test_guard.py`（pytest，77 例），按 `guard.decide()` 的 decision 断言分档：allow（纯只读/仓库内安全写/丢弃式重定向 `2>/dev/null`/`2>&1`/`>/dev/null`/fd dup/fd close/输入型 `<`）、confirm（写文件重定向 `> out.txt`/`>>`/`2> err.txt`/`>|`、rm 任意形态、find `-delete`/`-exec`、git 写形态 `rm/restore/branch -D/remote add/tag -d/config 写`、包管理器安装、逃逸仓库路径）、deny（sudo/mkfs/dd/shutdown、管道到 shell sink、git `reset/clean/push/pull/rebase/reflog/gc`）。
+- pyproject 补 `[project.optional-dependencies] dev = ["pytest>=8"]` + `[tool.setuptools] py-modules = ["guard"]`（后者避免 flat-layout 把 test_guard 当包导致 editable 构建失败）。
+- **测试暴露的边界（实际行为 ≠ 直觉，核对 guard.py 后定为预期）**：`git reset --hard`/裸 `git reset` → deny（reset 在 GIT_DESTRUCTIVE，非 confirm）；`rm -rf /` → confirm（rm 一律不自动放行）；`apt-get install` → confirm（apt-get 不在 DESTRUCTIVE 前缀集）；`git add .`/`git commit` → allow（仓库内安全写）。均落 [crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区。
+- 运行方式：`crush-guard/.venv/Scripts/python.exe -m pytest crush-guard/test_guard.py -q`。
+- 门禁：uv 装 dev 依赖后 77 例全绿；check-links.py 通过。
+
+## 2026-09-02 · Crush bash 权限门 guard.py 无害重定向误判修复（2>/dev/null 挡误伤）
+
+- 用户反馈「读文件命令被审查」：实测 `ls plan.todo 2>/dev/null; ls doc/*.md 2>/dev/null | head` 被判 confirm 而非 allow。根因 = `has_redirection()` 只要命中 bashlex `redirect` 节点就转 confirm，**不区分目标**——`2>/dev/null`/`2>&1`/`>/dev/null` 这类「丢弃输出/dup fd」的常见只读命令全被误伤成写文件。
+- 修复（guard.py）：`has_redirection` 改写为 `has_writing_redirect`，只对真实写文件重定向（`>/>>/>|/<>` 且目标非 `/dev/null`/`NUL`/`-`）返回 True；输入型（`<`/`<<`/`<<<`）、fd dup（`2>&1`，output=int）、fd close（`2>&-`）保持 allow。
+- 实测矩阵：`2>/dev/null`/`2>&1`/`>/dev/null`/`&>/dev/null`/`cat foo> /dev/null`/`git status 2>/dev/null`/`find . -type f 2>/dev/null` → allow；`> out.txt`/`>> out.txt`/`2> err.txt`/`>| out.txt` → 仍 confirm（写文件安全锁保留）。
+- 沉淀：教训新增第 4 条「无害重定向误判为写文件」落 [crush-guard-bash-gate.md](crush-guard-bash-gate.md)（含修正前后对照 + /dev/null/fd dup/fd close 边界 + heredoc 未终止抛错走 confirm 的安全兜底）。
+
 ## 2026-09-02 · Crush bash 权限门 guard.py 加固（rm/find/git 三类绕过修复）
 
 - 实测 `.crushrc` 挂载的 `crush-guard/guard.py`（bashlex AST 三档分类：allow/confirm/deny），确认工具直放行 `view ls grep glob edit write multiedit fetch agentic_fetch download`。
