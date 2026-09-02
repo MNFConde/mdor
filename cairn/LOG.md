@@ -1,6 +1,13 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · M3 切片3 本地资源协议落地（tiny_http + LocalHttpServer + PORT 注入）
+
+- `[workspace.dependencies]` 钉 `tiny_http 0.12.0`；新增 `mdor-app/src/local_http.rs`：`LocalHttpServer::bind("127.0.0.1:0")` 回环动态端口 + 独立 `std::thread`（B1）+ `Cache-Control: no-store`（B6）+ 经 core `resources.rs` 的 `resolve_local_url`/`sanitize_relative` 双重穿越拦截（B5，越界 403/404）。
+- 端口注入：`AppContext` 加 `port: u16`（默认 `0`）；`AppService::new` 委托 `with_port(base_dir, 0)`；app 启动起服后经 `with_port` 注入真实端口，渲染重写 URL 用 `ctx.port` 替代原 0 占位。
+- 门禁全绿：fmt/clippy（core+app）/test（87 单测 + 8 app + 16 集成）/audit（14 allowed 不变）；本地 socket 绑定测 + 穿越/字节/MIME 单测通过。
+- 提交 `13a21b5`；[local-resource-channel.md](local-resource-channel.md) 教训区补 6/7 条（port 注入模式 + tiny_http 细节）。
+
 ## 2026-09-02 · Crush bash 权限门审会确认清单补 git 只读子命令白名单
 
 - 用户点出「审查本会话确认过的命令是否真的需要确认」：逐条喂 `guard.decide()` 复核会话用过的命令，发现真正该 confirm 的是**执行任意代码的工具**（`uv`/`python`/`pytest`/`npm install`）与**写操作**（`git rm`/写文件重定向/rm），无副作用的纯读误伤成 confirm 即是 gap。

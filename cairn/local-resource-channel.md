@@ -5,7 +5,7 @@ summary: "本地资源分发通道定案：为什么 http 而非 file://、URL �
 tags: [mdor, webview, tiny-http, resource, dangerous-inner-html, dioxus]
 contains: [decision, lesson, procedure]
 created: "2026-08-16"
-updated: "2026-08-21"
+updated: "2026-09-02"
 related: [decisions.md, diff.md, project.md]
 authoring_mode: ai_generated
 ---
@@ -25,6 +25,8 @@ authoring_mode: ai_generated
 3. **URL 里的 version 是「声称值」不是「保证值」**：单工作区 checkout 设计下一旦有竞态，URL 声称的版本与实际内容不符，排查时反被误导。缓存问题用响应头根治比 URL 带 version 更可靠。故 URL 不带版本号。
 4. **重写必须发生在渲染时、不是存储时**：端口是动态的（`bind("127.0.0.1:0")` 只有运行时才确定）；保上游原样（场景 1 克隆的上游仓库不能污染、版本间 diff 不能被重写产物污染）；切版本零成本（重写规则与版本无关）。存储层永远是上游原样内容，URL 一个字符都不动。
 5. **重写与服务两端必须共享同一套规范化逻辑**（`resources.rs` 唯一事实来源），防 `../` 穿越与编码错位——否则「重写出的 URL 服务器读不到」。
+6. **端口须在渲染前注入 Core，不能写死在渲染侧**：`AppContext` 加 `port: u16`（默认 `0` = Core 占位），`AppService::new` 委托 `with_port(base_dir, 0)` 保持既有调用/测试等价；app 启动 `LocalHttpServer::bind` 取得真实端口后经 `with_port` 注入。渲染重写 URL 用 `ctx.port`，替换早期硬编码的 `0` 占位——否则渲染出的 URL 端口与服务实际端口不一致。
+7. **tiny_http 细节**：`bind("127.0.0.1:0")` 后读端口用 `server.server_addr().to_ip()`（返回 `Option`，回环必为 IP，可安全 `.expect`）；`Response::from_data` 再 `with_header` 追加 `Content-Type`/`Cache-Control`；服务须在独立 `std::thread` 阻塞 `incoming_requests()`，不能占 UI 线程。
 
 ## 当前结论
 
@@ -35,5 +37,6 @@ authoring_mode: ai_generated
 ## 实践指南
 
 - 服务器归 `mdor-app`：起停 + 动态端口 + no-store + 白名单校验（经 core `resources.rs`）；`render/resources.rs` 是 core 纯映射（URL↔规范化路径，无 socket），`html_extract.rs` 负责重写。
+- 切片3 已落地：`local_http.rs` `LocalHttpServer::bind`（回环动态端口）+ `AppService::with_port` 注入 AppContext；app 单测覆盖字节返回/MIME/no-store/穿越，含真实 socket 绑定测。
 - M6 打包配置项：cleartext 白名单、INTERNET 权限、`min_sdk_version = 30`、`tiny_http` 独立线程池。
 - 详情见 `decisions.md` D-04/D-05/D-06、`doc/diff.md` §2、`doc/project.md` §6.5/§10.1。
