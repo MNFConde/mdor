@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# talk_think project config
+# Strategy:
+#   - Read-only tools + web-fetch tools: always auto-approve.
+#   - Common write tools (edit/write/multiedit): auto-approve.
+#   - bash commands: repo-internal reads allowed everywhere, safe in-repo
+#     writes allowed, risky writes -> normal confirmation (via hook).
+
+# --- Tools that bypass the permission prompt entirely ---
+# Read / navigate
+permissions allow view ls grep glob
+# Write files (common in-repo edits)
+permissions allow edit write multiedit
+# Web retrieval (read-only over network)
+permissions allow fetch agentic_fetch download
+
+# --- Bash commands are classified by the hook ---
+# Uses bashlex (AST-based) so compound commands, write-flags, and path
+# escapes are handled precisely. See crush-guard/guard.py.
+hook add PreToolUse --matcher "^bash$" \
+  --command "crush-guard/.venv/Scripts/python.exe crush-guard/guard.py" \
+  --name auto-allow-bash

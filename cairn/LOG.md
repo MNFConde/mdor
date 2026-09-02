@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-02 · Crush bash 权限门 guard.py 加固（rm/find/git 三类绕过修复）
+
+- 实测 `.crushrc` 挂载的 `crush-guard/guard.py`（bashlex AST 三档分类：allow/confirm/deny），确认工具直放行 `view ls grep glob edit write multiedit fetch agentic_fetch download`。
+- 修复三类「字面量白名单」绕过：① rm 一律 confirm（原只认 `-rf/-r/-f/-R`，`--force`/`-rfx` 漏）；② `find -delete/-exec rm` 转 confirm（原 `find` 被当只读放行，绕过 rm 门）；③ git 读写分形态——`rm/restore/reset` 必然改工作树→confirm，`branch/remote/tag/config` 仅写形态 confirm（纯读仍 allow）。
+- 结论与分类矩阵沉淀 [crush-guard-bash-gate.md](crush-guard-bash-gate.md)（含 `--force`/`find -exec`/`git config user.email hack` 等实测对照）。
+
 ## 2026-09-02 · 切片1/2 Rust 三 skill 审查收敛 + 提交流程约定 + 坑回调 topic
 
 - 对切片1/2 两 commit 对照 rust 三 skill（best-practices / async-patterns / testing）审查，判定整体合格，硬伤 1 处：`render/` 每章渲染重复编译正则 + 高频路径 `.expect`。
