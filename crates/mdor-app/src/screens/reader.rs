@@ -58,9 +58,17 @@ pub fn switch_chapter(book_id: String, chapter_path: String) {
         return;
     };
     let app = app.clone();
-    let prev = READER.with(|r| (r.scroll_ratio, r.initial_anchor.clone()));
-    if prev.0 > 0.0 {
-        let _ = app.save_progress(&book_id, &chapter_path, prev.1, prev.0);
+    let prev = READER.with(|r| {
+        (
+            r.scroll_ratio,
+            r.initial_anchor.clone(),
+            r.chapter_path.clone(),
+        )
+    });
+    if prev.0 > 0.0
+        && let Some(current_path) = prev.2
+    {
+        let _ = app.save_progress(&book_id, &current_path, prev.1, prev.0);
     }
 
     spawn(async move {
@@ -100,6 +108,38 @@ pub fn ReaderScreen() -> Element {
     let toc = reader.toc().to_vec();
     let anchors = reader.anchors().to_vec();
     let current = reader.chapter_path.clone();
+
+    // 安装一次正文链接拦截（切章/正文重建不重复安装；依赖 book_id 定位书籍）。
+    // `document::eval` 必须在组件作用域内调用（desktop 的 Document provider 挂在根
+    // scope，spawn 出的任务可能拿不到 no-op 文档），故在 use_effect 里创建 Eval，
+    // 再 spawn 长活 recv 循环消费切章消息。
+    let intercept_book_id = book_id.clone();
+    use_effect(move || {
+        let script = r#"
+            const mark = "/mdor-res/v1/";
+            if (window.__mdor_listener_installed) return;
+            window.__mdor_listener_installed = true;
+            document.addEventListener("click", (ev) => {
+                const a = ev.target && ev.target.closest && ev.target.closest("a[href]");
+                if (!a) return;
+                const href = a.getAttribute("href") || "";
+                const idx = href.indexOf(mark);
+                if (idx < 0) return;
+                const path = href.slice(idx + mark.length);
+                if (!path || path.includes("..")) return;
+                ev.preventDefault();
+                dioxus.send(path);
+            }, true);
+        "#;
+        let mut eval = document::eval(script);
+        let book = intercept_book_id.clone();
+        spawn(async move {
+            // 长活循环：读到章节路径即切章；通道关闭（渲染器切换/组件卸载）则退出。
+            while let Ok(path) = eval.recv::<String>().await {
+                switch_chapter(book.clone(), path);
+            }
+        });
+    });
 
     rsx! {
         div {

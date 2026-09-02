@@ -113,7 +113,7 @@ fn extract_anchors(body: &str) -> Vec<String> {
 fn inject_css(body: &str) -> String {
     let css = BOOK_CSS.join("\n");
     format!(
-        r#"<style data-mdor="inline-theme">{css}</style><main id="mdor-content" data-mdor-prefix="{LOCAL_PREFIX}">{body}</main>"#
+        r#"<style data-mdor="inline-theme">{css}</style><main id="mdor-content" class="content" data-mdor-prefix="{LOCAL_PREFIX}">{body}</main>"#
     )
 }
 
@@ -129,8 +129,14 @@ mod tests {
         let ctx = url_prefix_root(8080, "abc");
         let rendered = render_chapter(CH1.as_bytes(), &ctx).expect("渲染成功");
         assert!(
-            rendered.html.contains("<style data-mdor=\"inline-theme\">"),
+            rendered
+                .html
+                .contains(r#"<style data-mdor="inline-theme">"#),
             "应注入内联 <style>"
+        );
+        assert!(
+            rendered.html.contains(r#"class="content""#),
+            "正文容器应带 .content 类（恢复 mdBook 缩放图/布局 CSS）"
         );
         assert!(!rendered.html.contains("<!DOCTYPE"), "应剥离文档声明");
         assert!(
