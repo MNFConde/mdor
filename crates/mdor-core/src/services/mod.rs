@@ -23,6 +23,9 @@ pub struct SnapshotResult {
     pub meta: crate::model::snapshot::SnapshotMeta,
 }
 
+/// 资源分发服务端口（§6.5 本地 tiny_http；`0` = 早期 Core 占位，测试用）。
+pub const DEFAULT_RESOURCE_PORT: u16 = 0;
+
 /// 命令上下文（§6.9）：持有全部模块句柄，供命令对象执行。
 pub struct AppContext {
     /// 存储聚合。
@@ -31,4 +34,6 @@ pub struct AppContext {
     pub registry: SourceRegistry,
     /// 位置迁移器（v1 默认 path）。
     pub migrator: Arc<dyn PositionMigrator>,
+    /// 本地资源分发端口（app 层 tiny_http 服务实际绑定端口；`0` = 未起服，[`DEFAULT_RESOURCE_PORT`]）。
+    pub port: u16,
 }

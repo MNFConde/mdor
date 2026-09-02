@@ -148,10 +148,10 @@ M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
         ✔ AppService::save_progress：scroll_ratio 保存（普通函数非命令——短/无网络/无并发归普通函数，§6.9）+ 埋点 @high @done(26-09-02 00:00)
         ✔ 切片验证：tests/ 门面级集成测试（渲染往返 + 进度读写）@high @done(26-09-02 00:00)
     切片3 本地资源协议（app 层，D-04 / SD-5）:
-        ☐ [workspace.dependencies] 钉 tiny_http @high
-        ☐ mdor-app/src/local_http.rs：LocalHttpServer（独立线程池不卡 UI B1 + bind("127.0.0.1:0") 动态端口 B2 + Cache-Control: no-store B6 + 白名单校验经 core resources.rs B5）@critical
-        ☐ app 启动起服 + PORT 注入 AppService/AppContext（先于渲染确定并写入重写 URL，§6.5 PORT 来源；不常驻 Service，B8）@critical
-        ☐ 切片验证：桌面起服请求子资源字节返回（图片/CSS 实测 200 + no-store；越界路径 403/404）@critical
+        ✔ [workspace.dependencies] 钉 tiny_http @high @done(26-09-02 23:30)
+        ✔ mdor-app/src/local_http.rs：LocalHttpServer（独立线程不卡 UI B1 + bind("127.0.0.1:0") 动态端口 B2 + Cache-Control: no-store B6 + 白名单校验经 core resources.rs B5）@critical @done(26-09-02 23:30)
+        ✔ app 启动起服 + PORT 注入 AppService/AppContext（先于渲染确定并写入重写 URL，§6.5 PORT 来源；不常驻 Service，B8）@critical @done(26-09-02 23:30)
+        ✔ 切片验证：app 单测覆盖字节返回/MIME/no-store/穿越（8 例含真实 socket 绑定测），越界 403/404；桌面子资源渲染确认移交切片4 阅读屏 @critical @done(26-09-02 23:30)
     切片4 阅读屏 + 目录抽屉（UI 四屏补全，§12 screens/）:
         ☐ app.rs Router + state.rs GlobalSignal（当前书籍/版本）；书架 → 阅读 → 返回跳转 @high
         ☐ screens/reader.rs：dangerous_inner_html 注入 + 滚动监听节流存进度 + 切章保存 @critical

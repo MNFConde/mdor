@@ -45,6 +45,11 @@ impl AppService {
     ///
     /// 需在 tokio 运行时上下文内调用（命令队列消费者任务 `tokio::spawn` 要求）。
     pub fn new(base_dir: PathBuf) -> Result<Self> {
+        Self::with_port(base_dir, super::DEFAULT_RESOURCE_PORT)
+    }
+
+    /// 初始化门面，指定资源分发端口（§6.5 本地 tiny_http 服务；默认 0 = Core 占位）。
+    pub fn with_port(base_dir: PathBuf, port: u16) -> Result<Self> {
         let store = BookStore::new(base_dir);
         let removed = store.cleanup_orphans()?;
         tracing::info!(?removed, "清理孤儿书籍目录");
@@ -54,6 +59,7 @@ impl AppService {
             store,
             registry,
             migrator: Arc::new(PathMigrator),
+            port,
         });
         let queue = CommandQueue::spawn(ctx.clone());
         Ok(Self { ctx, queue })
@@ -262,7 +268,7 @@ impl AppService {
         }
         let path = ctx.store.books_root().join(&book.id).join("site").join(rel);
         let bytes = std::fs::read(&path).map_err(|e| Error::io(&path, e))?;
-        let prefix = render::resources::url_prefix_root(0, &book.id);
+        let prefix = render::resources::url_prefix_root(ctx.port, &book.id);
         render::render_chapter(&bytes, &prefix)
     }
 

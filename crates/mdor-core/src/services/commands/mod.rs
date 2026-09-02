@@ -122,6 +122,7 @@ mod tests {
             store: BookStore::new(std::env::temp_dir().join("mdor-test-queue")),
             registry: SourceRegistry::new(),
             migrator: Arc::new(PathMigrator),
+            port: 0,
         });
         let queue = CommandQueue::spawn(ctx);
         let (tx, mut rx) = mpsc::unbounded_channel();
