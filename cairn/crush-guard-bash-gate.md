@@ -5,7 +5,7 @@ summary: "Crush bash 权限门 guard.py 三档分类模型与漏勺修复：三�
 tags: [crush, bash-gate, permission, guard, security]
 contains: [lesson, decision]
 created: "2026-09-02"
-updated: "2026-09-02"
+updated: "2026-09-03"
 related: []
 authoring_mode: ai_generated
 ---
@@ -51,3 +51,6 @@ authoring_mode: ai_generated
    - **实测暴露的边界（写测试时核对实际行为）**：`git reset --hard` / 裸 `git reset` 落 **deny**（`reset` 在 `GIT_DESTRUCTIVE`，非 confirm）；`rm -rf /` 与裸 `rm` 同判 **confirm**（项目决策 rm 一律不自动放行）；`apt-get install` 落 **confirm**（`apt-get` 未列入 `DESTRUCTIVE` 前缀集，仅 `mkfs.ext4` 等走前缀匹配）；`git add .` / `git commit` 在路径不逃逸仓库时落 **allow**（`GIT_SAFE_WRITE`）。回归测试见 `crush-guard/test_guard.py`（allow/confirm/deny 三档覆盖）。
 5. **git 只读子命令白名单缺漏（审会确认清单时发现）**：`GIT_READONLY` 只列了 status/log/diff/show/branch/... 等少量，`check-ignore` / `show-ref` / `for-each-ref` / `cat-file` / `ls-tree` / `diff-tree` / `name-rev` / `merge-base` / `rev-list` / `diff-index` / `diff-files` / `check-ref-format` 这些**无副作用只读/查询子命令**全落入默认 confirm——与本会话修的「无害重定向误判」同类：纯读操作被误伤成需要确认。**修法**：把这些常用 git 只读/查询子命令补进 `GIT_READONLY`（`has_write_flag`/重定向守卫仍让带 write flag 的变体转 confirm，如 `git show --output=.git/config HEAD`）。
    - **审查方法论**：审查「哪些命令需要确认」时，应把会话用过的每一条命令喂给 `decide()` 对照预期——真正应 confirm 的是**执行任意代码的工具**（`uv`/`python`/`pytest`/`npm install`）与**写操作**（`git rm`/写文件重定向/rm）；无副作用的**纯读**（ls/cat/find/git 查询/丢弃式重定向）误伤成 confirm 即是 gap。经此审查，本会话误伤的仅 git 只读子命令一类，已修复。
+
+6. **Crush 内置权限控制无法命令级（决定自定义 hook 是唯一路径）**：调研 charmbracelet/crush 源码与文档确认——内置 `permissions allow/deny` 只匹配**完整工具名**（`bash`/`view`/`mcp_xxx`），**不能**匹配子命令/参数/路径；内置 `safeCommands`/`bannedCommands` 列表**写死在源码、不可配置**，且是**前缀匹配 + 禁链式字符**（`` ; | && $( ` ``）实现，天然存在三类绕过（`echo hi && rm -rf`、`find -delete`、`git show --output=.git/config`）——正是本 guard 要补的洞。**结论**：命令级粒度只能靠自定义 PreToolUse hook；`guard.py` hook 已是官方推荐范式（文档明确示例自定义 `safe-bash.sh`）。Crush 扩展机制是 **hook（子进程，读 stdin/env，输出 allow/deny/none）非插件**，跟撰写语言无关。
+7. **性能瓶颈在 Python 冷启动，不与启动形态相关（决定重写动机）**：实测（2026-09-03）单次调 `guard.py` 时延——venv python 直呼 ~98ms、`uv tool install` console script ~96ms、`uv run --directory` ~147ms（uv 多一层项目解析，更慢）、`uv run --project` 的 49ms 是假的（未真正执行，`program not found`）。瓶颈是 **Python 解释器启动 + `import bashlex`**（`import bashlex` 约 99ms、`import sys` 38ms、`import json` 40ms）。**结论**：`uv tool install` 出的 console script **不更快**，「装成环境工具」不解决延迟；若要把时延从 ~100ms 降到个位数 ms，唯一彻底方案是**重写**（Rust + tree-sitter-bash 已确认可用，启动 ~2ms、单 `.exe` 部署、无 venv/解析开销）。Go「插件」不成立——hook 与语言无关，Go 不会让集成更简单。

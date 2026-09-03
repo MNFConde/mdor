@@ -1,6 +1,13 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-03 · crush-guard 基建化改造评估（A/B 未执行，仅 C 沉淀）
+
+- 用户提「`crush-guard/` 抽独立仓库 / 作环境工具 / 重写是否更好 / 守卫失效默认确认」。核实 crush 源码：内置 `permissions allow/deny` 只匹配完整工具名，`safeCommands`/`bannedCommands` 写死不可配且前缀匹配有洞（`echo hi && rm -rf`/`find -delete`/`git show --output=.git/config`）——自定义 hook 是唯一命令级路径，`guard.py` 已是官方范式。
+- 性能实测：venv python ~98ms、console script ~96ms、`uv run` ~147ms；瓶颈 = 解释器启动 + `import bashlex`（~99ms）。`uv tool install` 不更快。Rust + tree-sitter-bash 可行（~2ms、单 `.exe`）。
+- fail-safe 设计：`.crushrc` 管不到运行期工具可用性；hook 失败 = fail-open 反模式，须「输出 `none`/空」保守降级确认而非依赖失败。三层：guard 内部兜底 + wrapper 兜底 + `.crushrc` 指向 wrapper。
+- **状态**：本会话仅做评估与 cairn 沉淀，**A（抽独立仓库）/ B（Rust 重写）均未执行**，待用户确认方案后再推进。沉淀 [crush-guard-retrofit-options.md](crush-guard-retrofit-options.md)；[crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区补第 6/7 条（Crush 内置权限粒度 / Python 冷启动性能事实）。
+
 ## 2026-09-03 · 定案书源声明式 manifest 扩展路线（D-18：方向采纳、v1 后重评）
 
 - 用户提案「输入扩展为 scoop 式声明 manifest（JSON/TOML 承载书源）+ 插件化构建」：评估后拆为「数据描述层（真增量）+ 行为插件通道（现状已有）」，方向采纳；时机定案 = **v1（M0–M7）落地前不实现、全量落地后重评**，期间仅执行防返工约束（M4：来源参数 struct 化 + SUMMARY 解析纯函数化）。
