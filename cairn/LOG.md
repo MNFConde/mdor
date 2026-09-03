@@ -1,6 +1,13 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-03 · 定案书源声明式 manifest 扩展路线（D-18：方向采纳、v1 后重评）
+
+- 用户提案「输入扩展为 scoop 式声明 manifest（JSON/TOML 承载书源）+ 插件化构建」：评估后拆为「数据描述层（真增量）+ 行为插件通道（现状已有）」，方向采纳；时机定案 = **v1（M0–M7）落地前不实现、全量落地后重评**，期间仅执行防返工约束（M4：来源参数 struct 化 + SUMMARY 解析纯函数化）。
+- 落点：[decisions.md](../doc/decisions.md) 新增 D-18（含被否决替代：WASM/dylib 动态插件、Readability 式自动识别、立即立项）+ 总览表补 D-16/D-18 行；[project.md](../doc/project.md) 新增 §4.3 备选块记 + §10 M4 行补防返工注记 + §11 风险表加行；plan.todo 标题扩 M4 + 文末 M4 锚块（先锚约束、切片细化待 M3 收官）。
+- 沉淀 [source-manifest-expansion.md](source-manifest-expansion.md)（含难度分层、scoop 字段↔现有能力映射、开放问题）；ROADMAP 开放问题补条。
+- 同日补充：盘点 v1 落地前可零打碎敲项（4 条：两约束 + 选择器集中定义 + M4 收尾回写 schema 线索，及 M3 剩余/M5/M6/M7 无事可带的边界），落 plan.todo M4 锚块「零碎项」+ 主题文档实践指南「零碎项清单」节。
+
 ## 2026-09-03 · 确立 Dioxus skill 基准（knowledge-patch 为唯一基准）
 
 - 评估 7 个 dioxus skill 与若干 a11y skill 后，确立：**Dioxus 开发以 `dioxus-knowledge-patch` 为唯一且完整基准**（components-reactivity.md 已覆盖 0.7 的 signals/store/async）；`dioxus-modern` 仅为可选增益（tailwind 集成与 templates/examples 未用），非必需，不并行维护。

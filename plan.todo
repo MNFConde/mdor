@@ -1,4 +1,4 @@
-mdor 项目里程碑实施计划（M0/M1/M2/M3）:
+mdor 项目里程碑实施计划（M0/M1/M2/M3/M4）:
     依据：doc/project.md §10 里程碑 / §12 文件树；doc/env.md §3、§2.3
     推进顺序：先 core 后窗口；每阶段以质量门禁收尾（fmt/clippy/test/audit）
     符号：☐ 待办 / ✔ 完成 / ✘ 取消；优先级 @critical / @high / @low；完成可附 @done(yy-mm-dd HH:MM)
@@ -172,3 +172,14 @@ M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
         ☐ 门禁全绿：fmt --check → clippy -D warnings → test → audit + 覆盖率不回退 @high
         ☐ 文档回写：plan.todo + cairn/LOG + ROADMAP + 根 AGENTS.md 状态行 @high
         ☐ 环境注记：桌面 UI 验收在 Windows 宿主（dx serve --platform desktop，于 crates/mdor-app/ 目录运行）；ubuntu-dev VM 备选（GUI 调试要点见 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」）
+
+M4 GitHubSource（git clone/fetch + SUMMARY 解析 + markdown 渲染）:
+    验收（project.md §10）：真实仓库测试；测试不依赖真实网络（httpmock）
+    依据：doc/project.md §4.1/§6.5/§10；decisions.md D-01/D-18；doc/diff.md（场景 1）
+    既定约束（先锚不动、待 M3 收官后展开切片细化；防遗忘的分层纪律，防返工本体在 D-18）:
+        来源参数 struct 化：「URL 推导出的参数」与适配器行为分离，参数进独立 struct（将来声明式 manifest 直接反序列化为同一 struct，D-18 防返工约束①）
+        SUMMARY 解析独立纯函数模块：输入输出纯数据，不掺网络/落库（manifest 的 TOC 描述与 GitHub 路线可共用，D-18 防返工约束②）
+        注：manifest 本体（书源声明格式/选择器外置/bucket 分发）不在 M4 范围——D-18 定案 v1 落地前仅执行上述约束，v1 全量落地后重评是否上（触发与论证见 decisions.md D-18 / cairn/source-manifest-expansion.md）
+    零碎项（D-18 零打碎敲带上，顺手做、不立项；完整清单与「M3/M5/M6/M7 无事可带」边界见 cairn/source-manifest-expansion.md 实践指南）:
+        ☐ 选择器集中定义：TOC sidebar（ol.chapter/ol.section，static_site.rs 硬编码）与正文（main#content，html_extract.rs 硬编码）选择器收拢为单一常量模块（内部单源收拢 ≠ 运行时参数化，参数化仍留触发后；本身是可维护性改进）@low
+        ☐ M4 收尾知识回写：GitHub 路径暴露的 manifest schema 线索（SUMMARY 路径、markdown 渲染选项等特有字段）记入 cairn/source-manifest-expansion.md 开放问题节，为 v1 后重评攒证据 @low

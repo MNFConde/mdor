@@ -212,6 +212,12 @@ sequenceDiagram
     ADD-->>U: 书架出现新书籍
 ```
 
+### 4.3 书源 manifest 扩展（scoop 式声明输入）
+> [!NOTE] 【备选】 书源 manifest 扩展（scoop 式声明输入）
+> 触发：v1 全量落地后重评（[D-18](decisions.md#d-18-书源声明式-manifest-扩展路线)）
+> 
+> 长期形态：书源描述（站点结构、镜像边界、TOC/正文选择器、渲染管线选择）用 JSON/TOML 等声明式格式承载（类比 scoop 的 manifest），获取与构建走既有 `SourceAdapter` 插件通道——manifest 只是 detect/fetch 前的新入口，反序列化为来源参数 struct，适配器/落库/渲染管线全复用。方向已定、时机已定（v1 落地前仅执行防返工约束：来源参数 struct 化 + 解析纯函数化，见 [§10](#10-里程碑) M4 行注记），schema 与书源分发形态届时再定；论证见 [D-18](decisions.md#d-18-书源声明式-manifest-扩展路线)。
+
 ---
 
 ## 5. 数据模型
@@ -600,7 +606,7 @@ sequenceDiagram
 | **M1** | workspace + `mdor-core` 骨架（model / store / source trait / versioning / migration trait + 单测）+ gix 存储基座 + 服务门面 `AppService` + 命令骨架（`Command` trait + 队列 + `UpdateBookCommand` 占位）+ `mdor-app` 书架骨架（中文 UI）+ 轻量 `ci.yml`（core-quality：fmt/clippy/test/audit） | `cargo test -p mdor-core` / `cargo run` / CI 全绿 |
 | **M2** | `StaticSiteSource` + 递归镜像下载（自建链 + 版本 tag；`fixtures/mdbook-static/` 集成测试 + httpmock；首次建立 `tests/` 集成测试目录 + `cargo-llvm-cov` 覆盖率接入） | 用真实 mdBook 站点离线镜像 |
 | **M3** | 阅读器：内容抽取、资源协议、目录抽屉、滚动进度 | 桌面全流程 + 自适应布局验证（窗口缩至手机宽度） |
-| **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染（`fixtures/github-sample/` + httpmock） | 真实仓库测试 |
+| **M4** | `GitHubSource`：git clone/fetch 上游仓库（保留历史）+ SUMMARY 解析 + markdown 渲染（`fixtures/github-sample/` + httpmock）；实施须遵守 D-18 防返工约束——「URL 推导参数」与适配器行为分离（参数进独立 struct）、SUMMARY 解析做独立纯函数模块 | 真实仓库测试 |
 | **M5** | 版本功能开放：版本历史 UI + 按需 checkout 多版本阅读 + SnapshotMigrator（方案 D）+ 清理策略（初期删版本 tag；后续 shallow 截断 + gc 为可选设置项，两场景统一）+ 位置迁移引入 property-based 测试（proptest） | 修改源站后更新，验证旧版本位置可回放 |
 | **M6** | Android 打包（APK）、权限/存储目录/cleartext 配置 | 模拟器/真机验证 + 真机触控交互验证（滑动/返回/安全区/WebView/性能） |
 | **M7** | CI 与发布（GitHub Actions）：设计补充 + 落地 `ci.yml`（core-quality / windows-desktop-check / android-check）+ `release.yml`（tag 触发，签名 APK + Windows 桌面 exe）+ CI 与本地工具链解耦说明 | 打一个 tag 触发 CI 产出双平台 artifact；PR 自动跑质量与双平台编译检查 |
@@ -679,6 +685,7 @@ sequenceDiagram
 | 上游仓库体积 / Git LFS | 场景1 磁盘占用与图片渲染 | 依赖 gix 对象去重；LFS 仓库 clone 仅得指针文件，首版提示暂不支持 |
 | 静态站点镜像边界 | 防止越界爬取 | [【当前】 同源 + 入口路径前缀双重限界 + 深度/单文件/总量/文件数上限（`MirrorOptions`，M2 落地）](#静态站点镜像边界同源路径前缀)。仅同源会从 `/book/` 爬进同站 `/std/` 等外书路径，前缀是硬边界（2026-08-31 定案） |
 | 大小写碰撞物理冲突（`Foo.md` vs `foo.md`） | Windows NTFS 只能落一个文件 | tree 级检测（平台无关）；同 blob 归一；异 blob 两选项（双渲染+标注 默认 / 报错）；Windows 接受单渲染+标注退化；跨平台真双渲染绑定可选"blob 直接读"能力（[D-10](decisions.md#d-10-资源读取通道)，默认不引入）。排期：检测+落库 M2、标注渲染 M3（2026-08-30 定案，见 [D-09](decisions.md#d-09-gix-三坑配置规避)） |
+| 书源 manifest schema 待定（scoop 式声明输入，[D-18](decisions.md#d-18-书源声明式-manifest-扩展路线)） | 输入来源扩展形态 | v1 落地前仅执行防返工约束（来源参数 struct 化 + 解析纯函数化，M4 随手做）；schema（字段/格式/书源分发）留 v1 全量落地后重评时再定 |
 
 #### 静态站点镜像边界（同源+路径前缀）
 > [!IMPORTANT] 【当前】 同源 + 入口路径前缀双重限界 + 限额

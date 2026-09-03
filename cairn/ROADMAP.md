@@ -16,3 +16,4 @@
 ## 开放问题
 
 1. 风险与待定项以 `doc/project.md` §11 为准（如 D1 触摸滚动性能待 M6 真机）；达成共识后沉淀为 cairn/ 知识专题文档。（gix 三坑配置策略已实测敲定，见 D-09 / [gix-windows-pitfalls.md](gix-windows-pitfalls.md)）
+2. 书源声明式 manifest（scoop 式输入扩展）：方向已定（D-18），v1 全量落地后重评是否引入；落地前 M4 执行防返工约束（来源参数 struct 化 + SUMMARY 解析纯函数化）。见 [source-manifest-expansion.md](source-manifest-expansion.md)。
