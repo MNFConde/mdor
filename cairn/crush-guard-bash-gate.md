@@ -1,15 +1,16 @@
 ---
 type: project_topic
-status: active
+status: archived
 summary: "Crush bash 权限门 guard.py 三档分类模型与漏勺修复：三类字面量绕过 + 无害重定向误判为写文件的降级问题"
 tags: [crush, bash-gate, permission, guard, security]
 contains: [lesson, decision]
 created: "2026-09-02"
-updated: "2026-09-03"
+updated: "2026-09-06"
 related: []
 authoring_mode: ai_generated
 ---
 # Crush bash 权限门（guard.py 分类模型与漏勺修复）
+> **已退役（2026-09-06）**：crush-guard 已由独立 Rust 重写 [crush_tether](../../crush_tether) 取代（mdor 侧 `crush-guard/` 目录同日删除）。本文保留作历史知识；现行实现见 crush_tether 仓库 `doc/design.md`。
 
 ## 背景
 

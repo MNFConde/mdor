@@ -14,9 +14,10 @@ permissions allow edit write multiedit
 # Web retrieval (read-only over network)
 permissions allow fetch agentic_fetch download
 
-# --- Bash commands are classified by the hook ---
-# Uses bashlex (AST-based) so compound commands, write-flags, and path
-# escapes are handled precisely. See crush-guard/guard.py.
-hook add PreToolUse --matcher "^bash$" \
-  --command "crush-guard/.venv/Scripts/python.exe crush-guard/guard.py" \
-  --name auto-allow-bash
+# --- Bash commands ---
+# crush-guard 已退役（2026-09-06，Rust 重写 crush_tether 接棒），hook 摘除，
+# bash 回退 Crush 原生权限确认。需要命令级门时以 crush-tether 重挂（见
+# crush_tether README「agent 接入」）：
+#   hook add PreToolUse --matcher "^bash$" \
+#     --command "<crush-tether.exe 绝对路径> hook --agent crush" \
+#     --name auto-allow-bash

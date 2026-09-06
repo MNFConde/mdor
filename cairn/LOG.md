@@ -1,6 +1,12 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-06 · crush-guard 退役（Rust 重写 crush_tether 接棒）
+
+- 删除 `crush-guard/` 目录（guard.py / test_guard.py / pyproject.toml / uv.lock / egg-info / __pycache__）；`uv tool uninstall crush-guard` 解除全局安装；`[project.scripts]` 此前已回滚。
+- 现行实现 = 独立仓库 [crush_tether](../../crush_tether)（Rust 重写，P0–P6 收尾中）；[crush-guard-bash-gate.md](crush-guard-bash-gate.md) / [crush-guard-retrofit-options.md](crush-guard-retrofit-options.md) 已改 archived 并加退役指针。
+- uv.lock 的 +71 行未提交改动系 uv tool install 期间产生，随目录删除一并消失。
+
 ## 2026-09-03 · crush-guard 基建化改造评估（A/B 未执行，仅 C 沉淀）
 
 - 用户提「`crush-guard/` 抽独立仓库 / 作环境工具 / 重写是否更好 / 守卫失效默认确认」。核实 crush 源码：内置 `permissions allow/deny` 只匹配完整工具名，`safeCommands`/`bannedCommands` 写死不可配且前缀匹配有洞（`echo hi && rm -rf`/`find -delete`/`git show --output=.git/config`）——自定义 hook 是唯一命令级路径，`guard.py` 已是官方范式。

@@ -1,15 +1,16 @@
 ---
 type: project_topic
-status: active
+status: archived
 summary: "crush-guard（Crush bash 权限门 guard.py）基建化改造的评估结论：抽取独立仓库、Rust 重写可行性、fail-safe 默认确认设计。A（抽取）/B（Rust 重写）均未执行，仅评估沉淀。"
 tags: [crush, bash-gate, permission, guard, retrofit, rust, fail-safe]
 contains: [decision, lesson]
 created: "2026-09-03"
-updated: "2026-09-03"
+updated: "2026-09-06"
 related: [crush-guard-bash-gate]
 authoring_mode: ai_generated
 ---
 # crush-guard 基建化改造评估（抽取独立仓库 / Rust 重写 / fail-safe）
+> **已退役（2026-09-06）**：crush-guard 已由独立 Rust 重写 [crush_tether](../../crush_tether) 取代（mdor 侧 `crush-guard/` 目录同日删除）。本文保留作历史知识；现行实现见 crush_tether 仓库 `doc/design.md`。
 
 ## 背景
 

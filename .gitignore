@@ -3,11 +3,6 @@
 /tmp
 __pycache__/
 
-# Python 构建产物（uv pip install -e 生成的 egg-info 元数据，可再生成，勿提交）
-/crush-guard/*.egg-info/
-# setuptools 构建设备目录（uv tool install 产生，可再生成，勿提交）
-/crush-guard/build/
-
 # 便携工具链树（仅 dev-env.ps1 跟踪）；机制见 doc/env.md §2.6
 /dev/*
 !/dev/dev-env.ps1
