@@ -49,6 +49,27 @@
 - **项目 crates 依赖**（serde / thiserror / tokio / reqwest / scraper / pulldown-cmark / gix 等）：版本**不在本文档确认**，按 [project.md §12.1](project.md#121-关键设计决策) 于 M1 建 workspace 时在根 `[workspace.dependencies]` 取当时稳定版钉下；唯一例外 **dioxus 库跟随 dioxus-cli**——dx 0.7.10 ↔ dioxus 0.7.x 配对升级（§4.3）。
 - **`--locked` vs `--version`**：「不钉版本」只指不钉工具自身版本号（`--version`）；依赖图可复现（`--locked`）对所有 `cargo install` 一律启用，两者独立、互不替代。
 
+### 开发环境拓扑
+
+> 三端分工的论证与资源预算账见 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)；此处只落事实。VirtualBox 自定义目录安装坑见 [cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)。
+
+| 端 | 角色 | 事实 |
+|---|---|---|
+| 宿主机 Windows 原生 | Windows 桌面端构建+验证；安卓模拟器宿主 | VirtualBox **7.2.16** r174877 @ `D:\VirtualBox` + Extension Pack；Android Studio **待装**（走 Scoop）；SDK → `D:\Software\Android\Sdk`、AVD 目录由 `ANDROID_AVD_HOME=D:\Software\Android\avd` 指定（路径已定，未落地） |
+| nixos-wsl | 日常主力 Linux 环境（Remote-WSL/SSH；Android 交叉编译；产物 `adb connect` 推宿主机模拟器） | WSL2 默认发行版已就绪；开发依赖由仓库 `flake.nix` 单源管理（2026-08-25 落地：Rust 工具链单源自 `rust-toolchain.toml`、dx 0.7.10 由 shellHook 钉版、质量门禁工具、dioxus 桌面 Linux 库；**Android SDK/NDK/JDK 的声明式锁定 = M6 待办**，见 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)；不走 §1 矩阵的 `<仓库>\dev\` 便携树——那是宿主机 M6 方案）；环境侧个人工具（skills-manager CLI / Starship）见 [cairn/nix-env-tooling.md](../cairn/nix-env-tooling.md)；`.wslconfig` 上限 4 核 / 6G |
+| ubuntu-dev VM（备用） | 仅两个触发场景：dioxus Linux 桌面 GUI 调试、真机 USB 直通 | Ubuntu **24.04.4** Desktop（无人值守安装），4 核 / 6G 内存 / 80G 动态 VDI / EFI / USB3.0(xHCI)；配置与磁盘在 `D:\Software\VM_Resource\ubuntu-dev\`；环境同样走 `flake.nix`；环境准备操作手册见 [cairn/ubuntu-vm-setup.md](../cairn/ubuntu-vm-setup.md)。**实测网络（2026-08-30）**：仅 NIC1=NAT（无 NIC2 Host-Only，[【已替换】 NIC2=Host-Only 原规划](#nic2host-only-原规划与实测修正)），SSH = 宿主端口转发 → VM `10.0.2.15:22`（宿主侧 `127.0.0.1:2222`） |
+
+- 备用化最小配置（首次触发使用场景前补齐）：Guest Additions、openssh-server、git、Nix multi-user、装完快照。
+- ISO/extpack 等安装介质统一放 `D:\Software\VM_Resource\`。
+
+#### NIC2=Host-Only 原规划与实测修正
+
+> [!WARNING] 【已替换】 VM 网络原规划 NIC1=NAT + NIC2=Host-Only
+>
+> 原因：2026-08-30 首次 GUI 调试触发时实测，该 VM 实例只有 enp0s3（NAT），从未配置第二块网卡；SSH 一直走 NAT 端口转发（宿主 127.0.0.1:2222 → VM 10.0.2.15:22）。
+>
+> mdor 各里程碑（M2 镜像/M6 adb/USB 直通）均不依赖 Host-Only——NAT 转发已满足 SSH + scp + agent 会话需求。固定 IP 诉求（宿主机其他服务直访 VM）出现时再补 NIC2，届时回改本表与 cairn/ubuntu-vm-setup.md §0.2。
+
 ---
 
 ## 2. 安装步骤（按依赖顺序）
@@ -391,6 +412,10 @@ dx doctor         # 工具链体检（框架/环境升级后）
 | `dx build --android` 链接报乱码/参数过长 | 旧版 dx 的 Windows 链接器代理 bug | 升级 dioxus-cli ≥ 0.7.1（PR #4126 已修） |
 | `dx doctor` 提示缺 android target / SDK / NDK / JDK | **M0 阶段属正常**（Android 侧 M6 才启用） | M0 不必处理；M6 时按 §7 过渡清单补装并改回 `rust-toolchain.toml` |
 | Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics` | 真机 API < 30 | 在 `Dioxus.toml` 设 `min_sdk_version = 30` |
+| WSLg 桌面跑 dioxus 报 `libEGL`/`MESA-ZINK failed to choose pdev` 警告 | WSLg 无 GPU 直通，走软件渲染回退（zink） | 属噪声非错误，窗口正常渲染；渲染验证用日志（`RUST_LOG=mdor_core=debug` 见 store 读取）或宿主肉眼 |
+| WSLg 截图失败（grim 报合成器不支持 wlr-screencopy / imagemagick `x:` 无 X11 delegate / 缺 xwd·scrot） | WSLg 合成器未实现屏幕捕获协议、nixpkgs imagemagick 未编 X11 delegate | 视觉验证改 ubuntu-dev VM / Windows 宿主；或接受日志证据（渲染时读取 library.json） |
+| VM 桌面跑 dioxus 报 `Could not create default EGL display: EGL_BAD_PARAMETER`，WebKitWebProcess 反复自杀（黑窗/空白窗） | VirtualBox 显卡 VMSVGA 模拟 VMware（`vmwgfx`），nix mesa ≥25 已移除该 DRI 驱动 → WebKit GPU 进程 GBM 平台 EGL 初始化崩溃 | 启动前注入（devShell 内）：`WEBKIT_DISABLE_COMPOSITING_MODE=1 GSK_RENDERER=cairo LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe __EGL_VENDOR_LIBRARY_FILENAMES=<nix-mesa>/share/glvnd/egl_vendor.d/50_mesa.json WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1`；详见 [cairn/ubuntu-vm-setup.md §GUI 调试](../cairn/ubuntu-vm-setup.md) |
+| VM 内 `gnome-screenshot` 报 AccessDenied（D-Bus org.gnome.Shell.Screenshot） | GNOME 41+ 截图接口仅放行授权调用方 | `sudo apt install gnome-screenshot`（mutter 白名单工具），`gnome-screenshot -f <path>`；SSH 会话须带 `XDG_RUNTIME_DIR=/run/user/1000` |
 
 ---
 
@@ -425,6 +450,10 @@ cargo check --target aarch64-linux-android -p mdor-app   # 交叉冒烟（含 ri
 ---
 
 ## 8. 记录
+
+- 2026-08-25：`flake.nix` 落地（D-16「环境复现单源」）——Rust 工具链改用 `rust-bin.fromRustupToolchainFile` 复用 `rust-toolchain.toml` 单一事实源（钉 1.97.1，M6 补 targets 后自动生效）；devShell 补齐 dioxus 桌面 Linux 构建库（webkitgtk_4_1/gtk3/libsoup_3/gdk-pixbuf，服务 ubuntu-dev VM 的 GUI 调试场景）、质量门禁工具（cargo-audit/outdated/edit）；dx 0.7.10 由 shellHook `cargo install --locked` 钉版精确对齐 §1 矩阵。Android SDK/NDK/JDK 的 flake 声明式锁定定为 **M6 待办**（声明即安装、M0 用不到，且 rust targets 亦 M6 才补）。
+
+- 2026-08-24：§1 新增「开发环境拓扑」小节——三端架构（宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用）落地事实：VirtualBox 7.2.16 @ `D:\VirtualBox`、ubuntu-dev（24.04.4 无人值守装好）配置、Android Studio/SDK/AVD 的 D 盘路径；决策留痕 [decisions.md D-16](decisions.md#d-16-开发环境三端架构)。
 
 - 2026-08-20：定稿便携 Android 工具链方案——SDK/NDK/JDK 全部 zip 便携装 `<仓库>\dev\`（gitignored）；环境注入改会话级 `dev-env.ps1` + cargo 级 `.cargo/config.toml`（相对路径、无 force、已提交），版本化 NDK 与 Windows linker 走 gitignored `config.local.toml`（模板 `.example`）；JDK 定 Temurin 21；「全局优先、便携兜底」，全局依赖机零介入。相关改动：§1 矩阵路径、§2.4、§2.5、新增 §2.6、§4.2、§5、§6、§7。
 - 2026-08-09：初始化本文档；本机环境核对（Rust 1.97.1 / MSVC 工具链已装未激活 / dx、JDK、Android SDK、NDK 待装 / VS Build Tools 待装）。新增 §4 依赖升级策略（Rust 依赖 / 工具链 / Dioxus 框架 / 升级后必跑清单）。

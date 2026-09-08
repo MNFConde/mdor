@@ -1,4 +1,4 @@
-mdor 项目里程碑实施计划（M0/M1/M2）:
+mdor 项目里程碑实施计划（M0/M1/M2/M3/M4）:
     依据：doc/project.md §10 里程碑 / §12 文件树；doc/env.md §3、§2.3
     推进顺序：先 core 后窗口；每阶段以质量门禁收尾（fmt/clippy/test/audit）
     符号：☐ 待办 / ✔ 完成 / ✘ 取消；优先级 @critical / @high / @low；完成可附 @done(yy-mm-dd HH:MM)
@@ -16,50 +16,170 @@ M0 桌面开发环境:
 
 M1 workspace + mdor-core 骨架 + 书架 UI:
     验收：cargo test -p mdor-core 全绿 / dx serve 弹窗 / CI core-quality 全绿
-    workspace 重构:
+    推进方式：功能纵向切片——每片端到端打通，以可运行验证收尾（26-08-21 由模块罗列式重排）
+    ✔ M1 全量落地 @done(26-08-27 20:30)：切片1-6 全部完成；验收= cargo test -p mdor-core 34 绿 + 桌面书架真实数据渲染（日志证明）+ 门禁全绿；环境受限遗留见下方「M1 遗留」块
+    已完成:
         ✔ 根 Cargo.toml → [workspace]（members = crates/mdor-core、crates/mdor-app；virtual workspace 无 edition 可推断 resolver，须显式 `resolver = "3"`）@high @done(26-08-19 23:38)
         ✔ 根 [workspace.dependencies] 钉版本（serde/serde_json/thiserror/dioxus 0.7.x 等，取当时稳定版）@high @done(26-08-19 23:38)
         ✔ 删根 src/，建 crates/mdor-core（lib）+ crates/mdor-app（bin）骨架 @high @done(26-08-19 23:38)
-    mdor-core（纯 Rust 平台无关）:
-        error 与 model:
-            ☐ error.rs：统一错误类型（thiserror）
-            ☐ model/：Book / VersionSnapshot / TocEntry / ReadingPosition / MigratedPosition（serde）
-            ☐ model 单测：序列化往返、TOC 构造
-        store（§6.7 原子写 + §9 存储布局）:
-            ☐ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限）
-            ☐ store/library.rs：library.json（原子写，提交点）
-            ☐ store/progress.rs：progress.json（原子写，仅 rename）
-            ☐ store/snapshot.rs：git 仓库快照（gix：clone/fetch/自建 commit/版本 tag/checkout）
-        source（§4 输入插件）:
-            ☐ source/mod.rs：SourceKind + SourceAdapter trait + FetchResult
-            ☐ source/registry.rs：SourceRegistry（detect 遍历）
-        versioning 与 migration（§7/§8）:
-            ☐ versioning.rs：commit/版本 tag 生成、HEAD/ref 维护（gix）
-            ☐ migration/mod.rs：PositionMigrator trait
-            ☐ migration/path.rs：PathMigrator（v1 默认，按章节路径映射）
-        services（§6.9 薄门面 + 命令化）:
-            ☐ services/app_service.rs：AppService 门面
-            ☐ services/commands/mod.rs：Command trait + 命令队列
-            ☐ services/commands/update_book.rs：UpdateBookCommand 占位
-        gix 冒烟:
-            ☐ gix 存储基座冒烟单测：建仓库/打 tag/内容去重 @high
-        ☐ cargo test -p mdor-core 全绿 @critical
-    mdor-app UI 壳:
         ✔ Dioxus.toml + 书架骨架（中文 UI，dioxus 0.7.x）@high @done(26-08-19 23:38)
         ✔ dx serve --platform desktop 弹窗（= M0 验收 + M1 书架骨架）@critical @done(26-08-19 23:38)
-    CI:
-        ☐ 轻量 ci.yml（core-quality：fmt/clippy/test/audit）@low
-    ☐ 收尾：质量门禁全绿 + cairn/LOG + ROADMAP 更新
+    切片1 书架持久化:
+        ✔ error.rs：统一错误类型（thiserror）@high @done(26-08-27 17:00)
+        ✔ model::Book（serde；TocEntry 等其余模型随用随建，不一次建全）@high @done(26-08-21 22:12)【commit 58b4e2f 已落地 Book + derive_id + 单测】
+        ✔ store/util.rs：write_json_atomic + read_json_capped（durability 分层 + 1MB 上限，§6.7）@high @done(26-08-27 17:00)
+        ✔ store/library.rs：library.json 载入/保存（原子写 = 提交点语义）@high @done(26-08-27 17:00)
+        ✔ 切片验证：model 序列化往返 + 原子写单测，cargo test -p mdor-core 绿 @critical @done(26-08-27 17:00)
+    切片2 阅读进度:
+        ✔ model::ReadingPosition + progress.json 存取（原子写仅 rename 层）@high @done(26-08-27 17:20)
+        ✔ 切片验证：进度读写往返单测 @done(26-08-27 17:20)
+    切片3 gix 快照基座:
+        ✔ store/snapshot.rs：init/自建 commit/版本 tag/checkout（gix，§9 存储布局）+ D-09 配置双施加点（repo-local autocrlf=false+longpaths；open config_overrides 兜底）@high @done(26-08-27 18:00)
+        ✔ versioning.rs：版本 tag 生成与 HEAD/ref 维护（§7）@high @done(26-08-27 18:00)
+        ✔ 切片验证：gix 冒烟单测（建仓/tag/内容去重/硬切换/CRLF 字节保真）@high @done(26-08-27 18:00)
+        ✔ D-09 回写：Linux 侧实测通过（decisions/diff/cairn 已更新），Windows 侧五项遗留 @done(26-08-27 18:30)
+    切片4 日志基座（tracing）:
+        ✔ [workspace.dependencies] 增 tracing + tracing-subscriber（钉版，随用随建）@high @done(26-08-27 19:00)
+        ✔ mdor-core 挂 tracing 门面：业务只打点、不碰配置 @high @done(26-08-27 19:00)
+        ✔ mdor-app 桌面接入 tracing-subscriber fmt 层（stdout + RUST_LOG 控级别）；AppService 门面调用打 info（含耗时），错误路径 warn/error + 结构化字段（book_id/version）@high
+            注（26-08-27 微调）：AppService 埋点并入切片5（AppService 在切片5 才落地），切片4 只交付 deps + 门面 + subscriber
+        ✔ 切片验证：桌面跑动日志可见（WSLg：RUST_LOG=mdor_app=info 见「mdor 启动」，RUST_LOG=error 正确过滤）；mdor_core=debug 端到端随切片5 书架加载 @critical
+        ☐ 明确不做：远端汇聚/指标/分布式追踪/上报（无此需求；tracing 数据模型对齐 OTel，留将来上报的门）
+        ☐ M6 注记（不在本期）：tracing-appender 滚写到 app 数据目录 + adb logcat，发布构建 feature gate 裁剪
+    切片5 服务接线:
+        ✔ source/mod.rs + registry.rs：SourceKind + SourceAdapter trait + SourceRegistry（detect 遍历，实现留 M2，§4）@high
+            注（26-08-27）：SourceKind 已在 commit 58b4e2f 落地（GitForge/StaticSite），切片5 补 trait/registry；project.md §4 命名已对齐
+        ✔ migration/mod.rs + path.rs：PositionMigrator trait + PathMigrator（按章节路径直连/相邻回退 + 单测，MigratedPosition 随此引入，§8）@high
+        ✔ services/app_service.rs：AppService 门面（library 真实读 library.json；add_book/open_reading 占位/定位）+ 埋点（info 含耗时、错误 warn 结构化字段）@high
+        ✔ services/commands/：Command trait + 命令队列（tokio mpsc 串行）+ UpdateBookCommand 占位 + Progress 阶段 @high
+        ✔ 孤儿 books/<id>/ 清理（§11 遗留，26-08-27 定稿）：判定以 library.json 为准，BookStore 启动同步扫描+删除（无后台线程，防 add_book 建目录→登记窗口 TOCTOU）；升级门=将来启动耗时被大孤儿拖慢时再同步扫描+后台删除+删前复查
+        ✔ mdor-app 书架经 AppService 渲染 library.json 数据（main 数据根解析 + OnceLock 注入 + Library 屏）@high
+        ✔ 切片验证：桌面弹窗渲染真实书架数据（WSLg 运行日志证明渲染时读取 library.json 609 字节无错误；视觉截图受 WSLg 合成器/工具限制未获，宿主肉眼可验）@critical
+        ☐ tokio 进 workspace deps（D-12：core 异步运行时）+ async-trait——切片5 已随命令队列引入
+    切片6 CI 收尾:
+        ✔ 轻量 ci.yml（core-quality：fmt/clippy/test/audit，rust-toolchain 钉版 + rust-cache + cancel-in-progress；clippy 限 core 因 ubuntu 无 webkit）@low @done(26-08-27 20:30)
+        ✔ 收尾：质量门禁全绿（fmt/clippy/test 34 绿/audit exit 0）+ cairn/LOG + ROADMAP 更新 @done(26-08-27 20:30)
+    M1 遗留（环境受限，留待环境合适时执行）:
+        因 nixos-wsl 环境限制未完成、需换环境/宿主执行的验收项（26-08-27 记录）：
+        ✔ 书架弹窗视觉确认 @critical @done(26-08-30 19:30)
+            原因：WSLg 截图工具链受限（合成器不支持 wlr-screencopy / imagemagick 无 X11 delegate / xwd·scrot 缺失）；日志已证渲染管线（渲染时读取 library.json 609 字节）但无视觉证据
+            路径：ubuntu-dev VM（D-16 第一触发场景：dioxus Linux 桌面 GUI 调试）；Windows 宿主为备选
+            前提：✔ VM 环境已就绪（26-08-28：阶段0 最小配置 + 阶段1 devShell/direnv/dx 0.7.10 完成，见上方「ubuntu-dev VM 环境」块）；VM IP 实测为 NAT（26-08-30 更正，见 env.md §1）
+            执行（ubuntu-dev VM）：
+                ✔ 阶段0（用户侧）：VBoxManage startvm ubuntu-dev（或 GUI）启动；提供 Host-Only IP 确认 SSH 可达 @high @done(26-08-29 00:42)
+                ✔ 阶段1 最小配置：已完成（git/openssh-server/Nix multi-user+flakes 已装，官方 daemon 安装；非本表旧写 determinate-nix）
+                ✔ 阶段2 项目就位：已完成（SSH git clone + nix develop/devShell+direnv，见「ubuntu-dev VM 环境」块）
+                ✔ 阶段3 运行验证 @critical @done(26-08-30 18:00)
+                    ✔ seed library.json（2 本书）+ SSH 带 X11 env 跑 cargo run → 弹窗渲染 2 本书（像素分析 8 文本行段 = 1 标题 + 2×条目组）@done(26-08-30 18:00)
+                    ✔ gnome-screenshot 截图取证（sudo apt install 后自助，/tmp/opencode/mdor-final.png）→ 用户 VirtualBox 窗口肉眼复核通过 @done(26-08-30 18:00)
+                    注：WebKit EGL 崩溃坑与修复环境变量组合沉淀于 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」+ env.md §6 排查表
+                ✔ 阶段4 收尾：env.md 拓扑补 VM IP 事实（✔ 已补 NAT 实测）；按文档跑「装完快照」（env-ready）；cairn LOG @high @done(26-08-30 19:30)
+        ✔ D-09 gix Windows 侧六项实测 @high @done(26-08-30 22:00)
+            原因：需 NTFS 文件系统语义与 Git for Windows system 配置，WSL Linux 无法模拟
+            项：NTFS ignorecase 自动探测 / >260 路径 checkout / system autocrlf=true 压成 false / 大小写碰撞 checkout 行为 / tree 级冲突检测前提 / 同异 blob oid 判定
+            执行（Windows 宿主，M0 环境仍在）：✔ 六项全过，回归测试钉于 snapshot.rs #[cfg(windows)] 模块（commit 905666b，test 40 绿）
+            结论：ignorecase 实证自动写入；长路径无碍；毒药环境实锤（裸 init 读 system autocrlf=true）、双施加点压成 false；碰撞 checkout 静默覆盖（树序后者胜出）→ tree 级检测前置是标注唯一可行位置；详见 decisions.md D-09 实测结论
+            排期定案：检测+落库 M2（M4 复用）、标注渲染 M3
+        ✔ CI core-quality 实跑验证 @high @done(26-08-30 23:40)
+            原因：feature/m1-core 已 push（26-08-30 确认 origin 同步）但工作流仅监听 master push/PR（feature 分支不触发）
+            执行：✔ 合并 feature/m1-core → master → push（D-14 ff-only 纯快进，28 提交），Actions core-quality 绿
+            注：首跑 test 步骤抓 2 失败（MissingCommitter）——gix edit_reference 的 reflog committer 依赖环境 git 身份，CI runner 无身份即爆，本机/VM 有全局身份被掩盖（Android 真机同炸的产品级 bug）；修复 481b8df（edit_references_as 显式 mdor 身份 + 回归测试 reflog_writes_mdor_identity）→ 重跑全绿（41 测试）；M1 验收全闭环
+            注：唯一 annotation = checkout@v4 Node 20 弃用（平台噪音），已升 v5 消除（5db3c45）
+
+ubuntu-dev VM 环境（D-16 备用，M0 桌面范围; 操作手册见 cairn/ubuntu-vm-setup.md）:
+    依据：doc/env.md §1 开发环境拓扑 / decisions.md D-16；网络加速见 cairn/nix-mirror-proxy.md
+    ✔ 阶段0 最小配置：Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照 base-minimal @done(26-08-28)
+    ✔ 阶段1 devShell+direnv：nix flake check ✅ / cargo test 34 绿 ✅ / dx --version 0.7.10 ✅ @done(26-08-28)
+    ✔ 阶段2 skills-manager GUI+CLI + Starship @high @done(26-08-30 20:10)
+        注（26-08-30 实测）：skills-manager GUI+CLI 1.34.2 均在 profile（repo init 5 skills/2 presets）；Starship 1.26.0 装机 + bashrc hook + ~/.config/starship.toml（nix-env-tooling.md attrset 忠实转译，time 模块同 WSL 机默认禁用）；GUI 冒烟一次即失败（bwrap uid map 被 Ubuntu 24.04 apparmor_restrict_unprivileged_userns 拒绝，未到 WebKit 层）——按约定不重试，CLI 正常可用，GUI 待需要时排障（见 cairn/ubuntu-vm-setup.md 阶段2）
+    ✔ 阶段3 opencode：nixpkgs#opencode + auth login + skills deploy --agent opencode @high @done(26-08-30 20:05)
+        注（26-08-30 实测）：opencode 1.18.21 在 profile；auth 2 credentials（Z.AI/commandcode）；5 skills 已 deploy（~/.config/opencode/skills/）；devShell 继承式启动验证（本会话进程 NIX_* env 完整）
+    ✔ 阶段4 验收 + 快照 env-ready：fmt/clippy/audit + dx serve --platform desktop
+        注（26-08-30）：fmt/clippy/audit VM 实跑全绿（test 34）；弹窗验收以 cargo run -p mdor-app 等效完成（同一应用同一窗口，肉眼复核通过），未单独跑 dx serve；env-ready 快照已打 @high @done(26-08-30 19:30)
 
 M2 StaticSiteSource 静态站镜像:
     验收：真实 mdBook 站点离线镜像；测试不依赖真实网络（httpmock）
+    执行定案（26-08-31 会话确认）:
+        ✔ 镜像边界 = 同源 + 入口 URL 路径前缀双重限界（仅同源会从 /book/ 爬进同站 /std/ 等外书路径）@done(26-08-31 18:00)
+        ✔ <main> 抽取/链接重写不进 M2（属 §6.5 RenderService 渲染管线，M3）；M2 只交付镜像 + TOC @done(26-08-31 18:00)
+        ✔ 更新流程（UpdateBookCommand 实装）进 M2：D-08 tree hash 检测只在更新时生效，随切片6 闭环 @done(26-08-31 18:00)
+        ✔ proptest 试点不激活（versioning 纯函数已被 5 单测覆盖，留 M5 主受益点）@done(26-08-31 18:00)
+        ✔ fixture 用真实 mdbook build 构建 3-5 章小书（结构保真），一次构建永久跟踪 @done(26-08-31 18:00)
+        ✔ deps：reqwest 0.13.4（rustls，D-11）+ scraper 0.27.0 + url 2.5.4 + regex 1.12.2 + httpmock 0.8.3（dev-dep）已钉 workspace @done(26-08-31 18:00)
     fixtures:
-        ☐ fixtures/mdbook-static/：预构建静态 mdBook 站点样例 @high
+        ✔ fixtures/mdbook-static/：预构建静态 mdBook 站点样例（mdbook 0.5.4 构建 42 文件；源 mdbook-src/ 随库跟踪、book/ gitignored）@high @done(26-08-31 18:00)
     实现:
-        ☐ source/static_site.rs：递归镜像同源页面/资源 + 抽取 <main> + 构建 TOC @critical
-        ☐ 镜像边界：限同源 + 深度/大小上限（防越界爬取，§11）
-        ☐ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）
+        ✔ source/static_site.rs：递归镜像同源页面/资源 + 构建 TOC @critical @done(26-08-31 18:00)
+            注：<main> 抽取留 M3（§6.5 渲染管线）；镜像含 CSS url() 字体/背景发现 + noscript iframe 兜底（mdBook ≥0.5 toc.html 经 noscript 引用，html5ever 降级为转义文本）
+        ✔ 镜像边界：同源 + 入口路径前缀双重限界 + 深度/单文件/总量/文件数上限（MirrorOptions，防越界爬取，§11）@done(26-08-31 18:00)
+        ✔ 自建 git 链 + 版本 tag（场景 2，§7.2）+ 内容树 hash 变更检测跳过空提交（D-08）@done(26-08-31 18:00)
+            注：stage_tree/commit_tree 拆分实现「检测前置」——先 stage 比对 tree oid 再决定是否 commit，落库编排 snapshot_pipeline.rs
+        ✔ tree 级大小写碰撞检测（同/异 blob oid 判定，M1 原语复用，D-09 定案 3）+ SnapshotMeta 碰撞字段落库 @high @done(26-08-31 18:00)（标注渲染留 M3，26-08-30 定案）
+            注：BookRepo::scan_case_collisions + SnapshotMeta.case_collisions + 异 blob 报错选项（SnapshotOptions）M2 接线
     测试与验收:
-        ☐ httpmock 集成测试（fixtures/mdbook-static/）
-        ☐ 真实 mdBook 站点离线镜像验收（如 doc.rust-lang.org/book）
-        ☐ 收尾：门禁 + cairn/LOG 更新
+        ✔ tests/ 集成测试目录：`crates/mdor-core/tests/`（tests/common/mod.rs 共享工具，pub(crate) 资产不外借）@done(26-08-31 18:00)
+        ✔ httpmock 集成测试（static_site_mirror.rs 11 例 + app_service_flow.rs 门面级 3 例：添加/更新/跳过/迁移）@done(26-08-31 18:00)
+        ✔ cargo-llvm-cov 覆盖率接入：本地 cargo llvm-cov（总 90.7%、static_site 94.9%）；CI 挂 taiki-e/install-action + --lcov @done(26-08-31 18:00)
+        ✘ property-based 试点（proptest）：versioning roundtrip（tag ref ↔ 序号解析）@low
+            引入时机定案（26-08-31）：两条触发线先到先得——① M5 SnapshotMigrator（位置迁移纯函数、TOC 输入空间大、错则丢进度，主受益点，届时 TOC 生成器性质补全）；② M2 期间 versioning 解析边界手工枚举吃紧则提前试点（未触发，不激活——26-08-31 定案，留 M5 主受益点）
+        ✔ 真实 mdBook 站点离线镜像验收（doc.rust-lang.org/book，#[ignore] 手工跑：175 文件 / 114 页 / TOC 25 章）@done(26-08-31 18:00)
+        ✔ 收尾：门禁全绿（fmt/clippy/test 77 绿/audit exit 0）+ plan.todo + cairn/LOG + ROADMAP 更新 @done(26-08-31 18:00)
+        ✔ 收尾补充（26-09-01）：根 AGENTS.md 状态行更新为 M2 落地；CI lcov 报告接入 upload-artifact 归档；cargo audit 现状归档（14 条 allowed warnings = dioxus 桌面依赖链 unmaintained/unsound，默认不 deny、非漏洞，详见 cairn/cargo-audit-behavior.md）；proptest 试点按定案标 ✘ 不激活 @done(26-09-01)
+
+M3 阅读器（内容抽取 · 资源协议 · 目录抽屉 · 滚动进度）:
+    验收（project.md §10）：桌面全流程（添加 → 书架 → 阅读 → 目录跳转 → 进度恢复）+ 自适应布局验证（窗口缩至手机宽度）
+    依据：doc/project.md §6.5/§6.6/§3.3/§10/§12；decisions.md D-04/D-05/D-06/D-09；cairn/html-scraper-pitfalls.md
+    既定约束（文档已定案，实现按此执行、不再讨论）:
+        资源通道 = 本地 tiny_http 服务器（进程归 mdor-app）+ http://127.0.0.1:PORT 绝对 URL；mdor-book:// 自定义 scheme 降级备选（D-04）
+        链接重写时机 = 渲染时内存中进行（非存储时：端口动态/保上游原样/切版本零成本），URL 不带版本号，缓存由 Cache-Control: no-store 根治（D-04）
+        注入形态 = dangerous_inner_html，iframe 已否决（跨源破坏统一滚动进度跟踪，D-05）；<script> 不执行由 Dioxus 自绘 TOC/导航替代（E1 预期行为，验证书页无功能缺失）
+        阅读页样式 = include_bytes! 内嵌、渲染时 <style> 内联注入、不经本地 http（D-06 方案 1，2026-08-13 已决策；排版 CSS + 代码高亮主题，保证两端一致）
+        大小写碰撞归一 + 标注渲染归 M3（D-09 定案 3 件③，2026-08-30 排期；tree 级检测 + SnapshotMeta 落库 M2 已完成，M3 只做渲染层消费）
+        deps 新增：tiny_http（钉根 [workspace.dependencies]，D-12 版本约束一处钉版）；阅读页 CSS 内嵌资源存放位置实现时敲定
+        M3 不含：markdown 渲染/pulldown-cmark（M4 GitHub 路径）、版本历史 UI/多版本阅读（M5）、Android 触摸滚动/返回键/安全区/cleartext（M6 清单 §10.1）
+    切片1 core 渲染管线（render/，§6.5）:
+        ✔ render/resources.rs：URL ↔ 规范化路径双向映射 + 书根内白名单（纯函数、无 socket；渲染重写与 LocalHttpServer 共用同一逻辑 = 唯一事实来源，防 ../ 穿越 B5）@critical @done(26-09-02 00:00)
+        ✔ render/html_extract.rs：scraper 抽 <main id="content"> + 资源链接重写为本地绝对 URL（mdBook 0.4.x/≥0.5 页面结构一致，不受 toc.html 双形态影响；坑清单见 cairn/html-scraper-pitfalls.md：noscript 降级/嗅探/:scope）@critical @done(26-09-02 00:00)
+        ✔ render/mod.rs：render_chapter 入口（读工作区 site/ 章节 → 抽取 → 重写 → 内联 CSS <style> 注入）@critical @done(26-09-02 00:00)
+        ✔ 阅读页 CSS 内嵌（include_bytes!，D-06 方案 1）@high @done(26-09-02 00:00)
+        ✔ 切片验证：单测覆盖抽取/重写/双向映射/穿越拦截（复用 fixtures/mdbook-static），cargo test -p mdor-core 绿 @critical @done(26-09-02 00:00)
+    切片2 门面接线 + 进度（SD-2，§6.6/§6.9）:
+        ✔ AppService::open_reading 填全：读 progress.json → render_chapter → 扩展 OpenReading（+ toc + 章节 HTML + 初始位置）；位置指向章节缺失时回退 TOC 首章（迁移失败保留旧位置场景）@high @done(26-09-02 00:00)
+        ✔ AppService::save_progress：scroll_ratio 保存（普通函数非命令——短/无网络/无并发归普通函数，§6.9）+ 埋点 @high @done(26-09-02 00:00)
+        ✔ 切片验证：tests/ 门面级集成测试（渲染往返 + 进度读写）@high @done(26-09-02 00:00)
+    切片3 本地资源协议（app 层，D-04 / SD-5）:
+        ✔ [workspace.dependencies] 钉 tiny_http @high @done(26-09-02 23:30)
+        ✔ mdor-app/src/local_http.rs：LocalHttpServer（独立线程不卡 UI B1 + bind("127.0.0.1:0") 动态端口 B2 + Cache-Control: no-store B6 + 白名单校验经 core resources.rs B5）@critical @done(26-09-02 23:30)
+        ✔ app 启动起服 + PORT 注入 AppService/AppContext（先于渲染确定并写入重写 URL，§6.5 PORT 来源；不常驻 Service，B8）@critical @done(26-09-02 23:30)
+        ✔ 切片验证：app 单测覆盖字节返回/MIME/no-store/穿越（8 例含真实 socket 绑定测），越界 403/404；桌面子资源渲染确认移交切片4 阅读屏 @critical @done(26-09-02 23:30)
+    切片4 阅读屏 + 目录抽屉（UI 四屏补全，§12 screens/）:
+        ✔ core app_service.rs 补 render_chapter 公开方法（按指定章节渲染，目录抽屉切章/切章前存进度复用；复用 render_chapter_from_workdir）@high @done(26-09-02)
+        ✔ app.rs Router + state.rs GlobalSignal（当前书籍/版本）；书架 → 阅读 → 返回跳转 @high @done(26-09-02)
+        ✔ screens/reader.rs：dangerous_inner_html 注入 + 滚动监听节流存进度 + 切章保存 @critical @done(26-09-02)
+        ✔ 目录抽屉 components/：Dioxus 自绘 TOC（数据源 open_reading 返回 toc；子章节锚点跳转 heading_anchor）@high @done(26-09-02)
+        ✔ screens/add_book.rs：URL 输入添加书籍（书架现无添加入口，桌面全流程必需；URL 探测/校验仍在 core）@high @done(26-09-02)
+        ☐ 切片验证：桌面端到端（添加——真实站点或本地静态服务喂 fixtures/mdbook-static → 打开 → 目录跳转 → 滚动 → 重开进度恢复）@critical（代码就绪，桌面运行确认移交用户）
+    切片5 自适应布局（§3.3，移动优先 + 桌面壳）:
+        ☐ 断点 600px：≤600px 底部导航/全屏阅读/目录抽屉；≥600px 左侧固定侧边栏（书架 + 目录树）+ 顶部工具栏 @high
+        ☐ 监听视口宽度变化即时切换导航壳（仅重建 UI 壳，AppService 句柄与阅读进度状态不丢）@high
+        ☐ 切片验证：窗口缩至手机宽度切换正常（M3 验收项）@critical
+    切片6 大小写碰撞标注渲染（D-09 定案 3 件③）:
+        ☐ 同 blob 归一：渲染层消费 SnapshotMeta.case_collisions（oid 相等 → 内容一致归一单资源）@low
+        ☐ 异 blob 标注：Windows 单渲染 + 标注（工作区直读 D-10 自然退化 + 标注层，不依赖 blob 直接读；以 checkout 后实际物理内容为准，勿依赖「树序后者胜出」实现细节）@low
+        ☐ 切片验证：碰撞 tree fixture 单测（同/异 blob 两形态）@low
+    收尾:
+        ☐ 桌面全流程验收（真实站点镜像书全流程跑通）+ 自适应布局验证 @critical
+        ☐ 门禁全绿：fmt --check → clippy -D warnings → test → audit + 覆盖率不回退 @high
+        ☐ 文档回写：plan.todo + cairn/LOG + ROADMAP + 根 AGENTS.md 状态行 @high
+        ☐ 环境注记：桌面 UI 验收在 Windows 宿主（dx serve --platform desktop，于 crates/mdor-app/ 目录运行）；ubuntu-dev VM 备选（GUI 调试要点见 cairn/ubuntu-vm-setup.md「GUI 调试操作要点」）
+
+M4 GitHubSource（git clone/fetch + SUMMARY 解析 + markdown 渲染）:
+    验收（project.md §10）：真实仓库测试；测试不依赖真实网络（httpmock）
+    依据：doc/project.md §4.1/§6.5/§10；decisions.md D-01/D-18；doc/diff.md（场景 1）
+    既定约束（先锚不动、待 M3 收官后展开切片细化；防遗忘的分层纪律，防返工本体在 D-18）:
+        来源参数 struct 化：「URL 推导出的参数」与适配器行为分离，参数进独立 struct（将来声明式 manifest 直接反序列化为同一 struct，D-18 防返工约束①）
+        SUMMARY 解析独立纯函数模块：输入输出纯数据，不掺网络/落库（manifest 的 TOC 描述与 GitHub 路线可共用，D-18 防返工约束②）
+        注：manifest 本体（书源声明格式/选择器外置/bucket 分发）不在 M4 范围——D-18 定案 v1 落地前仅执行上述约束，v1 全量落地后重评是否上（触发与论证见 decisions.md D-18 / cairn/source-manifest-expansion.md）
+    零碎项（D-18 零打碎敲带上，顺手做、不立项；完整清单与「M3/M5/M6/M7 无事可带」边界见 cairn/source-manifest-expansion.md 实践指南）:
+        ☐ 选择器集中定义：TOC sidebar（ol.chapter/ol.section，static_site.rs 硬编码）与正文（main#content，html_extract.rs 硬编码）选择器收拢为单一常量模块（内部单源收拢 ≠ 运行时参数化，参数化仍留触发后；本身是可维护性改进）@low
+        ☐ M4 收尾知识回写：GitHub 路径暴露的 manifest schema 线索（SUMMARY 路径、markdown 渲染选项等特有字段）记入 cairn/source-manifest-expansion.md 开放问题节，为 v1 后重评攒证据 @low

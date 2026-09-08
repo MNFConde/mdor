@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# talk_think project config
+# Strategy:
+#   - Read-only tools + web-fetch tools: always auto-approve.
+#   - Common write tools (edit/write/multiedit): auto-approve.
+#   - bash commands: repo-internal reads allowed everywhere, safe in-repo
+#     writes allowed, risky writes -> normal confirmation (via hook).
+
+# --- Tools that bypass the permission prompt entirely ---
+# Read / navigate
+permissions allow view ls grep glob
+# Write files (common in-repo edits)
+permissions allow edit write multiedit
+# Web retrieval (read-only over network)
+permissions allow fetch agentic_fetch download
+
+# --- Bash commands ---
+# crush-guard 已退役（2026-09-06，Rust 重写 crush_tether 接棒），hook 摘除，
+# bash 回退 Crush 原生权限确认。需要命令级门时以 crush-tether 重挂（见
+# crush_tether README「agent 接入」）：
+#   hook add PreToolUse --matcher "^bash$" \
+#     --command "<crush-tether.exe 绝对路径> hook --agent crush" \
+#     --name auto-allow-bash

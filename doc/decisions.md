@@ -18,12 +18,16 @@
 | [D-06](#d-06-静态资源分流) | App 静态资源分流；阅读页样式内嵌定案（方案 1）；主题热更新走方案 2+兼容层（后续） | 已决策 | [diff.md §2.3](diff.md#23-逐维度对比) |
 | [D-07](#d-07-薄门面与命令化) | 薄门面 `AppService` + 按需命令化，不引入全局中介者 | 已决策 | [project.md §6.9](project.md#69-服务编排薄门面-按需命令化) |
 | [D-08](#d-08-变更检测) | 变更检测 = 原始字节 hash（autocrlf=false 前提）+ gix diff 展示 | 已决策 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
-| [D-09](#d-09-gix-三坑配置规避) | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 待 M1 实测 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
+| [D-09](#d-09-gix-三坑配置规避) | gix 三坑配置规避（repo-local + config_overrides + 大小写冲突处理） | 已实测（2026-08-27 Linux / 2026-08-30 Windows） | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
 | [D-10](#d-10-资源读取通道) | 资源读取通道可插拔：工作区直读默认，blob 直接读可选（互斥） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
 | [D-11](#d-11-tls-与加密选型) | TLS：rustls + platform-verifier + ring，gix 用 reqwest 后端 | 已决策 | [diff.md §1.6](diff.md#16-端到端对比与推荐方案) |
 | [D-12](#d-12-依赖与安全审计) | tokio + 依赖版本统一 + `cargo audit`（不引入 cargo deny） | 已决策 | [project.md §12.1](project.md#121-关键设计决策) |
 | [D-13](#d-13-数据目录注入) | 数据目录注入；Android `getFilesDir()` / Windows exe 同目录（便携式） | 已决策 | [project.md §9](project.md#9-存储布局) |
 | [D-14](#d-14-单人仓库协作与外部贡献流程) | 单人仓库协作：直推 master 保线性 + 外部 PR squash 合入 | 已决策 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| [D-15](#d-15-ui-框架选型) | UI 框架 = Dioxus（RSX 单语言 Rust，WebView 渲染路线） | 已决策 | [project.md §1.2](project.md#12-技术栈) |
+| [D-17](#d-17-模块内路由取舍) | M3 屏幕导航 = 手写 AppRoute 枚举（不引入 dioxus-router 依赖链）；引入 dioxus-router 的触发条件与重评时机见正文 | 已决策 | M3 切片4 阅读屏；重评时机锚定 M5/M6 场景 |
+| [D-16](#d-16-开发环境三端架构) | 开发环境三端架构：宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用（flake.nix 单源） | 已决策 | [env.md §1](env.md#开发环境拓扑) |
+| [D-18](#d-18-书源声明式-manifest-扩展路线) | 书源扩展长期形态 = 声明式 manifest（scoop 式）+ 既有 SourceAdapter 插件通道；v1 落地前仅执行防返工约束，不实现 manifest 本体 | 已决策（方向与时机）；schema 待定 | [project.md §4.3](project.md#43-书源-manifest-扩展scoop-式声明输入)、重评时机锚定 v1 全量落地后 |
 
 ---
 
@@ -250,11 +254,11 @@
 
 | 状态 | 日期 | 规范位置 |
 |---|---|---|
-| 待 M1 实测 | 2026-08-09 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
+| 已实测（Linux 侧 2026-08-27 / Windows 侧 2026-08-30，全部通过） | 2026-08-27 | [diff.md §4.5](diff.md#45-gix-三坑的配置规避机制梳理与待定讨论记录-2026-08-09) |
 
 **背景**：§4.3 三个 Windows 特有坑（长路径 / 大小写 / autocrlf）需在 gix 配置侧规避，但 gix 是库而非 CLI、没有 `git config` 命令，且三坑性质不同不能一刀切。**关键风险——全局约定是毒药**：gix 会读到用户机器全局配置（Git for Windows 常写 system 级 `core.autocrlf=true`，实锤案例 helix #6467），mdor 要求工作区字节 = 上游字节，任何 CRLF 转换都破坏它，且与 Android 行为不一致——不能靠"用户改全局配置"这类约定，必须由 mdor 主动在更高优先级压掉。
 
-**决策（推荐方向，待 M1 实测后敲定）**：A + B 叠加收敛到**两个配置施加点**，另有大小写冲突处理定案：
+**决策（A + B 叠加收敛到两个配置施加点，2026-08-30 两端实测敲定）**：另有大小写冲突处理定案：
 
 1. **snapshot.rs 的 clone/init 路径**：成功后、checkout 前执行 `apply_windows_safety_config()`，写 repo-local：`core.autocrlf=false`（必须）、`core.longpaths=true`（防御 + git CLI 互操作）；`core.ignorecase` 交给 gix 探测（Windows 上确认自动为 true）。
 2. **AppService 统一仓库打开入口**：`config_overrides` 兜底 `core.autocrlf=false`，保证进程内行为确定。
@@ -268,7 +272,16 @@
 | ignorecase | clone/init 时经 `create::Options::fs_capabilities` 探测文件系统并写入 git-config（NTFS 上大概率自动 `core.ignorecase=true`） | 只能让索引比较按大小写不敏感；**救不了**物理冲突 |
 | longpaths | 260 限制是 Win32 API 限制而非 NTFS；gix 走 Rust `std::fs`（宽字符 API + 超长路径自动 `\\?\`） | 大概率**不需要**；设它仅为 git CLI 互操作 / 防御 |
 
-**待 M1 实测项**：gix 在 Windows clone 是否自动写 `core.ignorecase=true`；checkout 超 260 路径是否无碍；模拟 Git for Windows system autocrlf=true 时压成 false 后 checkout 不再转换；碰撞路径 checkout 实际行为（告警 / 静默覆盖）；tree 级大小写冲突检测在 fixtures 验证；同 blob / 异 blob 判定（读两路径 blob oid 是否相等）。
+**实测结论（Windows 侧 2026-08-30，宿主 NTFS + Git for Windows system `autocrlf=true` 毒药环境 + gix 0.87.1；六项回归测试钉于 `store/snapshot.rs` `#[cfg(windows)]` 模块，commit 905666b）**：
+
+1. **ignorecase 自动探测**：gix `init` 经 `gix_fs::Capabilities::probe` 探测文件系统并写入 `core.ignorecase=true`（NTFS 实证）；经 `apply_safety_config` 重写 repo-local config 后保留。
+2. **>260 长路径**：约 350 字符路径 commit + checkout 字节保真，无需干预（gix 走 Rust `std::fs` 自动长路径，与预判一致）。
+3. **system autocrlf=true 压盖**：裸 init 探针实证 gix 确实读到 system 级配置（`autocrlf=Some(true)`，helix #6467 同款毒药环境本机即有）；mdor 双施加点叠加后有效值 `Some(false)`，CRLF 字节端到端保真。
+4. **大小写碰撞 checkout 静默覆盖**：commit 成功（对象层两条目共存）、checkout **无告警无报错**，NTFS 物理单文件，内容 = 树序后者（`readme.html`）——物理退化与定案一致，且证实 gix 不提供任何知情信号，**tree 级检测前置（定案 3）是实现「标注」的唯一可行位置，异 blob 未检测即 checkout = 内容静默丢失**。「树序后者胜出」是观察到的实现行为而非 gix 承诺的语义，已钉为回归断言（gix 行为变化即失败提示）；将来实现标注时以 checkout 后实际物理内容为准，勿依赖该顺序。
+5. **tree 级两条目共存**：对象层恒两条目（同/异字节均可），定案 3 的检测前提成立。
+6. **同/异 blob 判定**：同字节→oid 相等、异字节→oid 不等，判定原语可行（M2 直接复用）。
+
+**排期定案（2026-08-30）**：定案 3 拆三件——① tree 级检测（平台无关，fetch→commit 后扫 tree 比 oid）+ ② 检测结果落库（`SnapshotMeta` 增碰撞字段）归 **M2**（第一个真实 fetch 里程碑，M4 GitHubSource 复用同一检测函数；报错选项作为检测消费方在 M2 接线）；③ 归一 + 标注渲染归 **M3**（渲染行为；「Windows 单渲染+标注」= 工作区直读 D-10 自然退化 + 标注层，标注不依赖 blob 直接读；Android 物理两文件自然双渲染，M6 验证）。
 
 **影响**：autocrlf=false 使"磁盘字节 ≡ blob 字节 ≡ 两端字节"，把 gix 当字节透明存储用。
 
@@ -402,6 +415,154 @@
 - 与既有 Conventional Commits 钩子（`.agents/rules/commit.md`）协同：自己的提交遵循规范，外部 PR 由 squash 时 PR 标题承载规范
 
 **影响**：master 保持全绿、线性；每次外部 PR 合入 = 一个 squash commit；不引入 Git Flow / 复杂工具链；后续若有长期协作者加入，再评估升级为「PR + 分支保护」常规多人流程。
+
+## D-15 UI 框架选型
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-08-23 | [project.md §1.2](project.md#12-技术栈) |
+
+**背景**：UI 框架是骨架期最先敲定的选型之一，但当时只有结论没有论证留痕。约束条件：目标双端为 Windows（开发端）+ Android（一级支持）；书籍内容本身就是 HTML（mdBook 产物 / 渲染好的静态站），阅读页的核心诉求是**富 HTML 排版显示**；架构基石要求业务逻辑收敛在纯 Rust 的 `mdor-core`、桌面可直接 `cargo test`。
+
+**决策**：选 **Dioxus 0.7**——RSX 编译为虚拟 DOM 后注入 WebView 渲染，UI 与 core 同为 Rust、直接函数调用，无 IPC/FFI 语言边界。
+
+**依据**：
+
+- **「WebView 当显示器」是顺势而非妥协**：内容本身是 HTML，WebView 路线天然获得完整浏览器排版能力；App 自身 UI（书架/设置/抽屉）足够简单，不需要自绘引擎
+- **wry 只抹 API 封装层，不抹引擎差异**：所有 WebView 容器框架面对同一份系统内核碎片化（[diff.md §2](diff.md#2-webview-宿主影响-app-层差异最大)），选型真正比的是「谁把需要应用侧兜底的平台差异与语言边界压得更小」
+- **单语言 Rust**：对比 JS 前端 + Rust 后端的双语言方案，省掉序列化边界与两套工具链；对比 Dart/Flutter，保住「core 纯 Rust 桌面直测」（§2 原则 2）与既有 Rust 生态依赖（gix / pulldown-cmark / scraper）
+- **双端覆盖**：Dioxus 0.7 Android 一级支持 + Windows 开发端，均走 Chromium 内核
+
+### 被否定的替代方案
+> [!CAUTION] 【已否决】 被否定的替代方案
+> 原因：详见下列各项
+> 
+> - **Tauri**：底层同为 wry，引擎碎片化是共同底色且直接砸在自家 JS/TS 前端代码上（CSS 兼容、各平台桥接怪癖全要应用层自己兜）；多一层 JS↔Rust IPC 序列化边界；其最大痛点 Linux WebKitGTK 与其余三端的内核代差虽被 mdor「双端皆 Chromium」绕开，但其余否决理由独立成立。移动端支持 Tauri 2.0 才加入，成熟度弱于 Dioxus 0.7 的 Android 一级支持
+> - **Electron**：自带完整 Chromium，渲染零碎片化是最强一致性卖点；但**无官方 Android 支持 = 目标平台不覆盖**（非成熟度可弥补）；安装包 ~80–150 MB + 内存占用高，对离线阅读器过重；Node.js 栈推翻纯 Rust core 架构基石
+> - **Flutter**：自带渲染引擎不经过系统 WebView——但富 HTML 书页排版需自行解决（自绘引擎无浏览器排版能力，简化 HTML 解析组件对 mdBook 复杂书页保真度存疑）；整个应用活在 Dart 世界，保留 Rust core 需经 `dart:ffi` 三层桥接（Dart UI + FFI + Rust 库），构建链（cargo-ndk + Gradle）、内存管理、调试全面复杂化
+> - **自绘 Rust（egui / iced / Slint）**：同样无 HTML 排版能力，即时模式/自绘管线渲染不了长文档书页，与阅读器核心诉求错位
+
+**影响 / 诚实成本**：引擎差异并不因此消失——样式差异靠内联书籍 CSS 对冲（[D-06](#d-06-静态资源分流)），**渲染性能随各端系统 WebView 版本浮动、无法对冲**，只能架构性压小依赖面（业务全在 core、阅读页不用脚本、UI 由 Dioxus 自绘），剩余风险归拢 M6 真机验证（A1–A3 / D1，见 [project.md §10.1](project.md#101-m6-真机验证清单)）；dioxus 库与 dioxus-cli 配对升级为硬约束（[env.md §4.3](env.md#43-框架-dioxus-dx必须同步)）。
+
+## D-16 开发环境三端架构
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-08-24 | [env.md 开发环境拓扑](env.md#开发环境拓扑)、[cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)（安装坑） |
+| 已复核 | 2026-08-30 | 维持 ubuntu+nix，否决 [NixOS VM 复用作 VM 基座](#nixos-vm-复用作-vm-基座)（论证见下块） |
+
+**背景**：mdor 双目标为 Windows 桌面（开发端）+ Android；宿主机资源有限（6C12T / 15G 内存），需同时覆盖三件事——Linux 环境下的可复现开发、安卓产物验证、dioxus Linux 桌面 GUI 调试。候选路线：全部塞进一个 VirtualBox Ubuntu VM、WSL 为主 VM 为辅、全宿主机原生。
+
+**决策**：三端分工——
+
+- **宿主机 Windows 原生**：Windows 桌面端构建与验证（MSVC 本机链，零交叉成本），Android Studio + AVD 模拟器也在此运行
+- **nixos-wsl = 日常主力 Linux 环境**：VSCode Remote-WSL / SSH 命令行作业，Android 交叉编译在此进行，产物经 `adb connect` 直接推到宿主机模拟器
+- **VirtualBox ubuntu-dev VM = 备用环境**，仅两个触发场景：dioxus Linux 桌面 GUI 调试（WSLg 渲染不佳时）、真机 USB 直通验证
+- **环境复现单源 = 仓库 `flake.nix`**：rust 工具链与 NDK 等依赖声明式锁定，WSL 与 VM 共用同一份；apt 仅管系统底座（内核/驱动/sshd）。> **M6 待办**：`flake.nix` 于 2026-08-25 落地（Rust 工具链单源自 `rust-toolchain.toml` / dx 0.7.10 shellHook 钉版 / 质量门禁工具 / dioxus 桌面库），但 **Android SDK/NDK/JDK 的声明式锁定留到 M6**——Nix 下声明即实例化（SDK/NDK 数 GB），M0 用不到且 rust android targets 亦 M6 才补（对应 [env.md §7 过渡清单](env.md#7-m0-到-m6-过渡清单补回-android-侧)）。
+
+### 被否定的替代方案
+> [!CAUTION] 【已否决】 安卓模拟器进虚拟机 / 全环境收拢 Ubuntu VM
+> 原因：详见下列各项
+>
+> - **VM 内跑 Android 模拟器（AVD）**：VirtualBox 嵌套虚拟化下 AVD 自身需要的硬件加速无法满足，极慢且经常起不来——模拟器必须放有完整硬件加速的宿主机，VM 只做编译机
+> - **Ubuntu VM 作为唯一日常环境**：常驻分配 6G 内存挤压宿主机；桌面 GUI 对「SSH 命令行为主」的工作流是纯开销；且 nixos-wsl 已就绪、启动秒级、内存按需回收，同等能力下开销全面更低
+
+#### NixOS VM 复用作 VM 基座
+> [!CAUTION] 【已否决】 NixOS VM 复用作 VM 基座
+> 原因：详见下列各项
+>
+> 曾考虑把备用 VM 从「ubuntu+nix」换成 NixOS，以一步迁移 nixos-wsl 的 `/etc/nixos` 声明式系统配置，避免「apt 底座 + Nix 工具」双套装法。结论：不换。
+>
+> - **dev 层本已单源，换基座不改这一点**：仓库 `flake.nix` 同时喂 WSL 与 VM 的 devShell，两边零差别；ubuntu+nix 已满足「环境复现单源」，换 NixOS 只为把**系统层**（内核/服务/桌面/USB/GA）也声明式化
+> - **ubuntu+nix 双源风险**：apt 管底座（内核/驱动/sshd）+ Nix 管工具，同一软件可能两版并存（apt 版 vs flake 钉版）；devShell 内靠 PATH 前缀 + PKG_CONFIG_PATH + 构建产物 rpath 遮蔽、用 flake 钉版；shell 外回落 apt 版；绝对路径调用（`/usr/bin/xx`）绕过遮蔽
+> - **遮蔽即钉版能力**：`nix develop` 内 PATH 置顶 store 路径、链接期 PKG_CONFIG_PATH 指 store、产物 rpath 直指 store，等效声明式钉版——维持 ubuntu+nix 仍具备钉版能力，只是系统层不声明、靠「apt 只装底座」约定兜底
+> - **不换的两条主因**：① **兼容问题**——NixOS 上 VirtualBox Guest Additions 须对 store 内内核编译 DKMS 模块、版本匹配毛刺，而 GA 是 VM 核心用途（GUI 调试 / USB 直通）的前提；② **已装好没必要重来**——ubuntu-dev 24.04.4 无人值守装好 + 阶段 0/1 已闭环（Guest Additions / sshd / Nix / devShell 可用），重装沉没成本与备用环境收益不匹配
+
+**依据**：
+
+- 资源预算账（15G 总量）：VM 6G + 模拟器 2–3G + 宿主机 5–6G 恰好成立；VM 与模拟器同时开时 vCPU 取 4 核防打满（6C12T）
+- 复现性诉求：apt 无法锁定环境版本、多套环境互斥；Nix flake 天然按项目隔离且 `flake.lock` 锁版，一份 flake 同时喂 WSL 与 VM，消除「两边包不一致」
+- 工作流形态：大部分时间在宿主机 VSCode 经 Remote-WSL/SSH 操作，仅看安卓效果时回宿主机屏幕——Linux 桌面会话本身价值很低
+
+**影响 / 诚实成本**：
+
+- 新增工程资产 `flake.nix` 需随依赖演进维护；Nix 声明式配置有学习曲线
+- WSLg 下 WebKitGTK 渲染偶发小毛病——触发时退到 ubuntu-dev VM 调试（其存在意义即此兜底）
+- VirtualBox 与宿主机模拟器的虚拟化栈共存（WHPX/AEHD 两种驱动模式）待实测，最坏情况退真机 USB 直通（不受虚拟化冲突影响）
+- ubuntu-dev VM 已完成系统安装（无人值守；版本与配置见 [env.md 开发环境拓扑](env.md#开发环境拓扑)），备用化最小配置（Guest Additions / sshd / Nix / 快照）在首次触发使用场景前补齐即可；安装过程踩坑沉淀于 [cairn/vbox-windows-install.md](../cairn/vbox-windows-install.md)
+
+## D-17 模块内路由取舍
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策 | 2026-09-02 | M3 切片4 阅读屏（`app.rs` / `state.rs`） |
+
+**背景**：M3 阅读器需要屏幕跳转（书架 → 阅读 → 返回），`plan.todo` 切片4 首条即「app.rs Router + state.rs GlobalSignal」。但 M3 阶段屏幕仅四屏、全部为平面跳转，无 URL 参数、无外部入口、无 URL 栏（桌面 WebView）。同时仓库有两条硬约束——版本依赖在根 `[workspace.dependencies]` 钉一次（扁平化，[D-12](#d-12-依赖与安全审计)）、`mdor-app` 只做「HTML 注入 + 交互」不掺业务编排（[project.md §12.1](project.md#121-关键设计决策)）。
+
+**决策**：M3 屏幕导航采用**手写 `AppRoute` 枚举**（放入 `state.rs` 的 `GlobalSignal`），**不引入 `dioxus-router` 依赖链**。`dioxus-router` 的价值主场是「URL 状态机」（历史 / URL 参数 / 深链 / 守卫），对本离线移动阅读器（当前路由状态本就常驻内存 GlobalSignal，无 URL 栏与外部唤起需求）增益薄弱。
+
+**依据**：
+
+- 当前跳转平面（书架/添加/设置/阅读），无需参数化路径；手写枚举 + `GlobalSignal` 即可表达，零新增依赖
+- `dioxus-router` 不在 `Cargo.lock`，引入会带 history / URL 同步等 feature 依赖进 workspace，与「版本钉一次、app 层薄」冲突
+- 仓库哲学强调把业务与渲染收敛进 core、UI 只做交互；自绘状态驱动的枚举更贴合该解耦，不引入框架级路由约定
+- M3 阶段阅读位置状态在内存 GlobalSignal，URL 无关；在线 Web 才有「URL 是状态单一事实源」需求
+
+### 引入 dioxus-router 的触发条件（满足任一即重评）
+
+1. **深链需要跨会话恢复/外部唤起**——M6 Android 自定义 scheme（如 `mdor-book://reader/{book_id}`）让系统 intent / 文件关联直达某章节，要求路由状态可被 URL 序列化
+2. **M5 多版本阅读，路径需带 `:version`**——路由变为 `reader/{book_id}/{version}/{chapter}` 三层参数 + 可选锚点；手写枚举需手工拆 `(book_id, version, chapter, anchor)`，dioxus-router 的类型化路径参数 + 嵌套路由正好覆盖
+3. **阅读位置成为单一事实源，需 URL↔状态自动双向同步**——要求 WebView 前进/后退走章节历史、或刷新后路由状态重放时，手写需自搭 history/恢复
+4. **路由需守卫或拦截**——如「未打开书籍不能进 reader」「版本不存在回退」，路由器有统一 route + redirect 机制
+
+### 重评时机
+
+> [!NOTE] 重评时机：**不做主动引入**。到 **M5（多版本 `:version` 参数）或 M6（Android 深链）对应场景真正产生价值点时**，再据上述触发条件做一次独立判断；届时以本 ADR 为基线，逐条核验触发条件是否成立再决定引入或维持手写。
+
+**影响 / 诚实成本**：
+
+- 手写 `AppRoute` 枚举本身是**纯应用层状态**，不违反「版本钉一次」「app 层薄」；代价是当触发条件出现时需迁移——但迁移面小（仅 `app.rs` 的路由分发），且 core 无感知
+- 4 屏平面跳转用手写最省；一旦产生参数化路径或深链，当前手写方案的有限性即暴露，属预期内成本，非设计缺陷
+- 本决策不排除将来版本升级时顺手引入 dioxus-router 的可能，但引入与否以触发条件为准，不因「框架更完整」而立项
+
+---
+
+## D-18 书源声明式 manifest 扩展路线
+
+| 状态 | 日期 | 规范位置 |
+|---|---|---|
+| 已决策（方向与时机）；schema 待定 | 2026-09-03 | [project.md §4.3](project.md#43-书源-manifest-扩展scoop-式声明输入)、[§10](project.md#10-里程碑) M4 行防返工注记、[§11](project.md#11-风险与待定项) |
+
+**背景**：输入来源希望扩展为更多方式（mdBook、博客网站、各类电子书站等，如 ddia）。用户设想的长期形态类比 scoop 包管理器：书源（站点结构、镜像边界、TOC/正文选择器、构建/渲染管线选择）用 JSON/TOML 等声明式格式承载，不同输入源的获取与构建方式以插件形式接入——「书源描述（数据）」与「构建插件（行为）」分离。当前架构已有插件半壁：`SourceAdapter` trait + `SourceRegistry` 按 URL 探测分发（§4），缺的只是声明式书源描述层。
+
+**决策**：
+
+1. **v1（M0–M7）输入入口维持 URL 单一入口，manifest 不进任何里程碑计划**——M3–M7 期间只执行防返工约束，不实现 manifest 任何部分。
+2. **书源扩展长期形态定案为：声明式 manifest（数据）+ 既有编译期 `SourceAdapter` 插件通道（行为）**。manifest 未来只是 detect/fetch 前的一个新入口：反序列化为来源参数 struct，适配器、落库、渲染管线全部复用；新增来源 = 新增适配器模块 + 一份 manifest 描述。
+3. **防返工约束（M3–M7 随手执行、不立项）**：M4 实施时「URL 推导出的参数」与「适配器行为」必须分离——参数进独立 struct（未来 manifest 直接反序列化为同一 struct）；SUMMARY 解析做成独立纯函数模块（manifest 的 TOC 描述与 GitHub 路线可共用）。这两条本身是分层纪律，有无 manifest 都成立。
+4. **引入时机 = v1 全量落地（M7 后）重评是否上线**；重评依据见「依据」节。schema（字段、格式选型 TOML/JSON、书源 bucket 分发）届时再定。
+
+**依据**：
+
+- **只有一个适配器时设计 schema = 猜需求**：manifest 该长什么样由真实来源多样性教出来（GitHub 适配器会暴露 SUMMARY 路径、markdown 渲染选项等特有字段；ddia 类 Oink 主题站会暴露选择器差异），提前定 schema 反成兼容负担
+- **manifest 的核心收益是书源共享**（scoop bucket 式社区分发，一份描述处处可装）：v1 单人使用阶段该收益不存在；实际需要的只是「选择器/边界可配置」这个小子集，而它推迟到触发后做不推翻任何已落地东西
+- **架构正交保证零成本等待**：manifest 未来挂在 detect/fetch 之前（反序列化成参数 struct），适配器与落库/渲染管线全复用；等待不产生返工成本
+- 现有能力与 scoop manifest 字段已有隐式对应：`remote_version` ≈ autoupdate（[D-08](#d-08-变更检测) 变更检测）、原始字节 hash ≈ hash 校验——已站在 manifest 一半的位置上，缺的只是「站点结构描述 + 构建管线选择」
+
+### 被否定的替代方案
+
+> [!CAUTION] 【已否决】 被否定的替代方案
+> 原因：详见下列各项
+>
+> - **运行时动态插件加载（WASM/dylib 第三方插件）**：体积/安全/复杂度大增；Rust 静态编译下的对应物就是「编译期 trait 插件（现状）+ 数据 manifest（本决策）」，后者已覆盖「新增来源不改核心」的诉求
+> - **无 manifest 的任意站自动识别（Readability 式正文/目录自动发现）**：通用网页正文抽取是公认难题、准确率不可控；manifest 的哲学恰是绕开它——每站人工写一次源描述，不做万能识别，与 scoop 一致
+> - **立即立项（M3/M4 期间实现 manifest）**：见依据前两条——schema 猜需求 + 书源共享收益为负期，只加风险不省钱
+
+**影响 / 诚实成本**：
+
+- M4（及后续适配器实施）多两条分层纪律（参数 struct 化 + 解析纯函数化），成本低、独立成立
+- 选择器参数化（TOC sidebar / `<main>` 正文选择器外置）是 manifest 的前置拼图之一，**有意不排期**：属 v1 落地后自然增强，不推翻任何已落地内容
+- v1 落地后重评时若否决 manifest（无足够来源多样性需求），防返工约束不白付——它们本身即好的分层
 
 ---
 

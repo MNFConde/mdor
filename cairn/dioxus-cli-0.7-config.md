@@ -5,7 +5,7 @@ summary: "dioxus-cli 0.7 的 Dioxus.toml 格式（name + default_platform，区�
 tags: [cairn, dioxus, dx, dioxus-cli, workspace]
 contains: [lesson, reference]
 created: "2026-08-19"
-updated: "2026-08-19"
+updated: "2026-08-21"
 related: [env.md, project.md]
 authoring_mode: ai_generated
 ---
@@ -40,7 +40,7 @@ M1 workspace 重构把 `mdor-app`（Dioxus 桌面 bin）放进 Cargo workspace �
 - `dx build --platform desktop` 产物在 **workspace 根 `target/dx/<crate>/debug/windows/app/<crate>.exe`**（非成员目录内）。
 - 直接运行该 exe 即弹桌面窗口（无需 dx serve）；骨架未设窗口标题时默认为 **"Dioxus App"**——`[application] name` 不直接映射为桌面窗口标题（需 dioxus-desktop 窗口配置显式设置）。
 
-## Lessons
+## 教训
 
 1. **dx 版本升级时核对 Dioxus.toml 字段**：0.6 `app_id` → 0.7 `name` + `default_platform`，大版本迁移必须先看官方模板/`dx config init`。
 2. **workspace member 必须 cd 进入后运行 dx 命令**：dx serve/check 从 CWD 找配置，无 project 定位参数。
@@ -48,7 +48,7 @@ M1 workspace 重构把 `mdor-app`（Dioxus 桌面 bin）放进 Cargo workspace �
 4. **crates 依赖版本统一走根 `[workspace.dependencies]`**：member 侧 `dioxus = { workspace = true, features = ["desktop"] }`，desktop feature 在 member 追加（features additive，见 env.md §4.1）。
 5. **dx 日志走 stderr，PowerShell 输出判读用 `$LASTEXITCODE`**：dx 的 tracing 日志（INFO/warning）写 stderr；PowerShell 里 `dx ... 2>&1` 会把正常日志包装成红色 ErrorRecord 块（`NativeCommandError`），业务正常时也显示成「报错外观」。判据看退出码 `$LASTEXITCODE`（0=成功），不看输出颜色——与 cargo-audit 的静默成功判据同理。
 
-## Current Conclusions
+## 当前结论
 
 - mdor-app 保持纯 bin + Dioxus.toml（`name` + `default_platform = "desktop"`）；dx serve/check 一律在 `crates/mdor-app/` 运行。
 - 规范落点：`doc/env.md` §3（验收命令 + 工作目录）；任务落点：`plan.todo` M1（mdor-app UI 壳，已完成）。

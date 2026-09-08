@@ -1,11 +1,267 @@
 # Project Cairn 日志
 
 本文件按时间倒序记录实质进展——最新条目在最上、紧跟本行。每条保持精简——摘要 + 指针；结论沉淀进 `cairn/<主题>.md`。
+## 2026-09-06 · crush-guard 退役（Rust 重写 crush_tether 接棒）
+
+- 删除 `crush-guard/` 目录（guard.py / test_guard.py / pyproject.toml / uv.lock / egg-info / __pycache__）；`uv tool uninstall crush-guard` 解除全局安装；`[project.scripts]` 此前已回滚。
+- 现行实现 = 独立仓库 [crush_tether](../../crush_tether)（Rust 重写，P0–P6 收尾中）；[crush-guard-bash-gate.md](crush-guard-bash-gate.md) / [crush-guard-retrofit-options.md](crush-guard-retrofit-options.md) 已改 archived 并加退役指针。
+- uv.lock 的 +71 行未提交改动系 uv tool install 期间产生，随目录删除一并消失。
+
+## 2026-09-03 · crush-guard 基建化改造评估（A/B 未执行，仅 C 沉淀）
+
+- 用户提「`crush-guard/` 抽独立仓库 / 作环境工具 / 重写是否更好 / 守卫失效默认确认」。核实 crush 源码：内置 `permissions allow/deny` 只匹配完整工具名，`safeCommands`/`bannedCommands` 写死不可配且前缀匹配有洞（`echo hi && rm -rf`/`find -delete`/`git show --output=.git/config`）——自定义 hook 是唯一命令级路径，`guard.py` 已是官方范式。
+- 性能实测：venv python ~98ms、console script ~96ms、`uv run` ~147ms；瓶颈 = 解释器启动 + `import bashlex`（~99ms）。`uv tool install` 不更快。Rust + tree-sitter-bash 可行（~2ms、单 `.exe`）。
+- fail-safe 设计：`.crushrc` 管不到运行期工具可用性；hook 失败 = fail-open 反模式，须「输出 `none`/空」保守降级确认而非依赖失败。三层：guard 内部兜底 + wrapper 兜底 + `.crushrc` 指向 wrapper。
+- **状态**：本会话仅做评估与 cairn 沉淀，**A（抽独立仓库）/ B（Rust 重写）均未执行**，待用户确认方案后再推进。沉淀 [crush-guard-retrofit-options.md](crush-guard-retrofit-options.md)；[crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区补第 6/7 条（Crush 内置权限粒度 / Python 冷启动性能事实）。
+
+## 2026-09-03 · 定案书源声明式 manifest 扩展路线（D-18：方向采纳、v1 后重评）
+
+- 用户提案「输入扩展为 scoop 式声明 manifest（JSON/TOML 承载书源）+ 插件化构建」：评估后拆为「数据描述层（真增量）+ 行为插件通道（现状已有）」，方向采纳；时机定案 = **v1（M0–M7）落地前不实现、全量落地后重评**，期间仅执行防返工约束（M4：来源参数 struct 化 + SUMMARY 解析纯函数化）。
+- 落点：[decisions.md](../doc/decisions.md) 新增 D-18（含被否决替代：WASM/dylib 动态插件、Readability 式自动识别、立即立项）+ 总览表补 D-16/D-18 行；[project.md](../doc/project.md) 新增 §4.3 备选块记 + §10 M4 行补防返工注记 + §11 风险表加行；plan.todo 标题扩 M4 + 文末 M4 锚块（先锚约束、切片细化待 M3 收官）。
+- 沉淀 [source-manifest-expansion.md](source-manifest-expansion.md)（含难度分层、scoop 字段↔现有能力映射、开放问题）；ROADMAP 开放问题补条。
+- 同日补充：盘点 v1 落地前可零打碎敲项（4 条：两约束 + 选择器集中定义 + M4 收尾回写 schema 线索，及 M3 剩余/M5/M6/M7 无事可带的边界），落 plan.todo M4 锚块「零碎项」+ 主题文档实践指南「零碎项清单」节。
+
+## 2026-09-03 · 确立 Dioxus skill 基准（knowledge-patch 为唯一基准）
+
+- 评估 7 个 dioxus skill 与若干 a11y skill 后，确立：**Dioxus 开发以 `dioxus-knowledge-patch` 为唯一且完整基准**（components-reactivity.md 已覆盖 0.7 的 signals/store/async）；`dioxus-modern` 仅为可选增益（tailwind 集成与 templates/examples 未用），非必需，不并行维护。
+- 其余 5 个均不采用：dioxus-ui-ux / rust-dioxus / rust_dioxus_framework（对应 0.6 或过浅）、dioxus-docs-kit-integration（强依赖 dioxus-router，冲突 D-17）、forge-idiomatic-engineer（Axum+SQLx 无关）。
+- 落点：[ui-framework-selection.md](ui-framework-selection.md) 新增「Dioxus skill 基准」节；根 [AGENTS.md](../AGENTS.md) 质量门禁补「Dioxus 一律以 knowledge-patch 为准」指针；只记名字不记路径（按名执行，无则跳过）。
+
+## 2026-09-02 · 补沉淀切片4 会话遗漏信息（Signal Copy / audit 网络坑）
+
+- 按 project-cairn 校核切片4 会话：发现 `ui-framework-selection` 缺「`Signal<T>` 是 Copy，`.clone()` 触发 clippy `clone_on_copy`（读用 `*sig.read()`）」、rsx 无谓 clone、`spawn` 调异步门面与 GlobalSignal 写时机三条；`cargo-audit-behavior` 缺「fetch advisory-db 网络失败 → exit 2，`--db` 不解决离线」坑。
+- 补写：[ui-framework-selection.md](ui-framework-selection.md)「M3 屏幕实现实践」扩到第 7/8/9 条（Signal Copy / 非组件上下文 spawn / 异步门面）；[cargo-audit-behavior.md](cargo-audit-behavior.md) 补「运行环境依赖下载咨询库」段（fetch 失败 exit 2、`--db` 仍先 fetch、离线复用基线对策）。
+- 均更新 `updated` 日期至 2026-09-02。
+
+## 2026-09-02 · M3 切片4 阅读屏与目录抽屉落地（AppRoute 路由 + 四屏）
+
+- 屏幕导航：`state.rs` 手写 `GlobalSignal<AppRoute>`（Library/AddBook/Reader）+ `GlobalSignal<ReaderState>`（当前书籍/章节/进度），不引入 dioxus-router（决策见 [doc/decisions.md D-17](../doc/decisions.md#d-17-模块内路由取舍)）。
+- 新增 `app.rs`（按 NAV 分发的根组件，`match` 各臂归一为 `Element`）+ `screens/library|reader|add_book` + `components/toc_drawer`。
+- reader：`dangerous_inner_html` 注入正文；滚动容器 `onscroll` 用 `ScrollData` 算 `scroll_top/(scroll_height-client_height)` 节流存进度；切章先 `save_progress` 再 `render_chapter`。
+- toc_drawer：Dioxus 自绘 TOC 树（子章节整章切换）+ 页内锚点经 `use_window().webview.evaluate_script` 的 `scrollIntoView` 跳转。
+- core：`AppService` 补 `render_chapter(book_id, chapter_path)` 公开方法（复用 `render_chapter_from_workdir`，含穿越拒绝），供目录切章/切章前存进度复用。
+- 门禁全绿：fmt/clippy -D warnings/test（115 通过，含 app 单测 10 + core 89 + 16 集成）；audit 无新依赖（网络 fetch advisory-db 失败，沿用切片3 基线 14 allowed）。
+- 提交 `75d0867`（code）+ `376ad8d`（D-17 docs）；切片4 代码项全部完成，桌面端到端运行验证移交用户；切片5 自适应布局为 M3 收尾待办。
+- 实现模式与坑沉淀 [ui-framework-selection.md](ui-framework-selection.md)「M3 屏幕实现实践」（use_window eval / onscroll 滚动 / rsx for 裸 let / match 归一）。
+## 2026-09-02 · M3 切片3 本地资源协议落地（tiny_http + LocalHttpServer + PORT 注入）
+
+- `[workspace.dependencies]` 钉 `tiny_http 0.12.0`；新增 `mdor-app/src/local_http.rs`：`LocalHttpServer::bind("127.0.0.1:0")` 回环动态端口 + 独立 `std::thread`（B1）+ `Cache-Control: no-store`（B6）+ 经 core `resources.rs` 的 `resolve_local_url`/`sanitize_relative` 双重穿越拦截（B5，越界 403/404）。
+- 端口注入：`AppContext` 加 `port: u16`（默认 `0`）；`AppService::new` 委托 `with_port(base_dir, 0)`；app 启动起服后经 `with_port` 注入真实端口，渲染重写 URL 用 `ctx.port` 替代原 0 占位。
+- 门禁全绿：fmt/clippy（core+app）/test（87 单测 + 8 app + 16 集成）/audit（14 allowed 不变）；本地 socket 绑定测 + 穿越/字节/MIME 单测通过。
+- 提交 `13a21b5`；[local-resource-channel.md](local-resource-channel.md) 教训区补 6/7 条（port 注入模式 + tiny_http 细节）。
+
+## 2026-09-02 · Crush bash 权限门审会确认清单补 git 只读子命令白名单
+
+- 用户点出「审查本会话确认过的命令是否真的需要确认」：逐条喂 `guard.decide()` 复核会话用过的命令，发现真正该 confirm 的是**执行任意代码的工具**（`uv`/`python`/`pytest`/`npm install`）与**写操作**（`git rm`/写文件重定向/rm），无副作用的纯读误伤成 confirm 即是 gap。
+- 发现的 gap（第 5 条）：`GIT_READONLY` 缺 `check-ignore`/`show-ref`/`for-each-ref`/`cat-file`/`ls-tree`/`diff-tree`/`name-rev`/`merge-base`/`rev-list`/`diff-index`/`diff-files`/`check-ref-format`——这些无副作用只读/查询子命令原落默认 confirm。**修法**：补进 `GIT_READONLY`（`has_write_flag`/重定向守卫仍保留 write 变体 confirm）。
+- 顺带补 `.gitignore` 规则 `/crush-guard/*.egg-info/` 并 `git rm --cached` 移除 `crush-guard/crush_guard.egg-info/`（uv pip install -e 生成的构建元数据，可再生成勿跟踪）。
+- test_guard.py 新增 13 例 git 只读子命令（77→90 全绿）；沉淀 [crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区第 4/5 条 + 方法论。
+- 门禁：90 例全绿；check-links.py 通过。
+
+## 2026-09-02 · Crush bash 权限门 guard.py 增加回归测试（test_guard.py）
+
+- 新增 `crush-guard/test_guard.py`（pytest，77 例），按 `guard.decide()` 的 decision 断言分档：allow（纯只读/仓库内安全写/丢弃式重定向 `2>/dev/null`/`2>&1`/`>/dev/null`/fd dup/fd close/输入型 `<`）、confirm（写文件重定向 `> out.txt`/`>>`/`2> err.txt`/`>|`、rm 任意形态、find `-delete`/`-exec`、git 写形态 `rm/restore/branch -D/remote add/tag -d/config 写`、包管理器安装、逃逸仓库路径）、deny（sudo/mkfs/dd/shutdown、管道到 shell sink、git `reset/clean/push/pull/rebase/reflog/gc`）。
+- pyproject 补 `[project.optional-dependencies] dev = ["pytest>=8"]` + `[tool.setuptools] py-modules = ["guard"]`（后者避免 flat-layout 把 test_guard 当包导致 editable 构建失败）。
+- **测试暴露的边界（实际行为 ≠ 直觉，核对 guard.py 后定为预期）**：`git reset --hard`/裸 `git reset` → deny（reset 在 GIT_DESTRUCTIVE，非 confirm）；`rm -rf /` → confirm（rm 一律不自动放行）；`apt-get install` → confirm（apt-get 不在 DESTRUCTIVE 前缀集）；`git add .`/`git commit` → allow（仓库内安全写）。均落 [crush-guard-bash-gate.md](crush-guard-bash-gate.md) 教训区。
+- 运行方式：`crush-guard/.venv/Scripts/python.exe -m pytest crush-guard/test_guard.py -q`。
+- 门禁：uv 装 dev 依赖后 77 例全绿；check-links.py 通过。
+
+## 2026-09-02 · Crush bash 权限门 guard.py 无害重定向误判修复（2>/dev/null 挡误伤）
+
+- 用户反馈「读文件命令被审查」：实测 `ls plan.todo 2>/dev/null; ls doc/*.md 2>/dev/null | head` 被判 confirm 而非 allow。根因 = `has_redirection()` 只要命中 bashlex `redirect` 节点就转 confirm，**不区分目标**——`2>/dev/null`/`2>&1`/`>/dev/null` 这类「丢弃输出/dup fd」的常见只读命令全被误伤成写文件。
+- 修复（guard.py）：`has_redirection` 改写为 `has_writing_redirect`，只对真实写文件重定向（`>/>>/>|/<>` 且目标非 `/dev/null`/`NUL`/`-`）返回 True；输入型（`<`/`<<`/`<<<`）、fd dup（`2>&1`，output=int）、fd close（`2>&-`）保持 allow。
+- 实测矩阵：`2>/dev/null`/`2>&1`/`>/dev/null`/`&>/dev/null`/`cat foo> /dev/null`/`git status 2>/dev/null`/`find . -type f 2>/dev/null` → allow；`> out.txt`/`>> out.txt`/`2> err.txt`/`>| out.txt` → 仍 confirm（写文件安全锁保留）。
+- 沉淀：教训新增第 4 条「无害重定向误判为写文件」落 [crush-guard-bash-gate.md](crush-guard-bash-gate.md)（含修正前后对照 + /dev/null/fd dup/fd close 边界 + heredoc 未终止抛错走 confirm 的安全兜底）。
+
+## 2026-09-02 · Crush bash 权限门 guard.py 加固（rm/find/git 三类绕过修复）
+
+- 实测 `.crushrc` 挂载的 `crush-guard/guard.py`（bashlex AST 三档分类：allow/confirm/deny），确认工具直放行 `view ls grep glob edit write multiedit fetch agentic_fetch download`。
+- 修复三类「字面量白名单」绕过：① rm 一律 confirm（原只认 `-rf/-r/-f/-R`，`--force`/`-rfx` 漏）；② `find -delete/-exec rm` 转 confirm（原 `find` 被当只读放行，绕过 rm 门）；③ git 读写分形态——`rm/restore/reset` 必然改工作树→confirm，`branch/remote/tag/config` 仅写形态 confirm（纯读仍 allow）。
+- 结论与分类矩阵沉淀 [crush-guard-bash-gate.md](crush-guard-bash-gate.md)（含 `--force`/`find -exec`/`git config user.email hack` 等实测对照）。
+
+## 2026-09-02 · 切片1/2 Rust 三 skill 审查收敛 + 提交流程约定 + 坑回调 topic
+
+- 对切片1/2 两 commit 对照 rust 三 skill（best-practices / async-patterns / testing）审查，判定整体合格，硬伤 1 处：`render/` 每章渲染重复编译正则 + 高频路径 `.expect`。
+- 修复（61cf1ae）：`href/src` 与 `id` 两处正则改为 `const` 常量 + `LazyLock<Regex>` 缓存（仅初始化一次），`.expect` 收敛到单处常量初始化；门禁 fmt/clippy 全绿、全量 87 单测 + 16 集成无回归。
+- AGENTS.md 质量门禁追加提交流程约定：提交前用环境中对应语言的 skill 审查改动（改什么语言就用其 skill），按审查结果修正后提交；不限定具体语言与 skill 名。
+- 坑回调（补记录缺口）：切片1 的「scraper 0.27 属性不可变 → 链接重写只能两段式占位替换」原先只存 LOG 摘要，现补进 [html-scraper-pitfalls.md](html-scraper-pitfalls.md) 教训区（M3 复用要点）。
+
+## 2026-09-02 · M3 切片1/2 落地（core 渲染管线 + 门面接线/进度）
+
+- **切片1 core 渲染管线**（`render/` 三件 + CSS 内嵌，不触碰 app 层）：
+  - `resources.rs`：LOCAL_PREFIX/VERSION_SEGMENT、`build_ctx`/`url_prefix_root`/`local_url`/`resolve_local_url` 双向映射（URL↔相对路径）+ `sanitize_relative` 目录穿越白名单（B5），纯函数无 socket。
+  - `html_extract.rs`：`extract_main`（`main#content` 优先、回退 `main`）+ `rewrite_links`（regex 定向改写 `href`/`src`，跳过 `#` 锚点/外部 scheme）。
+  - `mod.rs`：`RenderedChapter`（html/title/anchors）+ `render_chapter` 入口，内联 BOOK_CSS（D-06 方案 1 `include_str!`），抽取标题与锚点。
+  - **关键坑**：scraper 0.27 属性**不可变**（`ElementRef::attr` 无 setter，`Element.attrs` 私有只读），`rewrite_links` 无法原地改属性 → 只能「先序列化相对引用为 `/mdor-res/v1/` 占位符、再整体 `replacen` 为书根上下文前缀」两段式；占位符不含 `&`/`<`/`>`/`"` 故 html5ever 转义不影响文本替换。
+- **切片2 门面接线 + 进度**：`OpenReading` 扩展（book/position/toc/chapter_html/initial_anchor/scroll_ratio）；`open_reading_inner`→`locate_and_render`（无版本/TOC 缺失 → 空渲染降级不致命；进度章节缺失 → 回退 TOC 首章；定位章渲染失败 → 回退首章）；`save_progress`（普通函数，`version_id`=当前版本 + `saved_at` unix，info/warn 埋点）。
+- 回写：plan.todo 切片1（5 项）+ 切片2（3 项）勾选 @done；`RenderedChapter::empty()` 降级占位。
+- 门禁：fmt/clippy 全绿，mdor-core 单测 63→87（新增 24）+ 集成 render_flow 2（渲染往返 + 进度读写）新绿，全量 87 + 16 集成（1 ignored）绿；audit 无新增依赖。
+
+## 2026-09-01 · M3 阅读器计划排定（plan.todo 建块，M3 未开工）
+
+- `plan.todo` 新增 M3 块（表头补齐）：6 切片 = core 渲染管线（render/ 三件 + CSS 内嵌）→ 门面接线+进度 → 本地资源协议（tiny_http/D-04）→ 阅读屏+目录抽屉 → 自适应布局（§3.3 600px 断点）→ 大小写碰撞标注渲染（D-09 定案 3 件③）；验收 = 桌面全流程 + 窗口缩至手机宽度（§10 M3 行）
+- 既定约束块收拢文档定案（实现不再讨论）：D-04 tiny_http + 渲染时重写 + no-store / D-05 dangerous_inner_html / D-06 方案 1 include_bytes / D-09 碰撞归一+标注 / M3 不含项（markdown 渲染 M4、版本 UI M5、Android 触控 M6）
+- 依据核对：project.md §6.5/§6.6/§3.3/§10/§12 + decisions.md D-04~D-09 + html-scraper-pitfalls.md（M3 复用坑清单）+ 代码预留点（app_service.rs `open_reading` M3 注、static_site.rs 模块注、SnapshotMeta.case_collisions）
+- 门禁：文档-only 改动，无代码测试触发；check-links 待下次代码会话例行执行
+## 2026-09-01 · M2 收尾杂项归档（AGENTS.md 状态行 / CI lcov artifact / audit 现状 / proptest 定案落表）
+
+- 根 `AGENTS.md` 状态行 M1 → M2 全量验收（此前 M2 七提交均未触及，违反协作约定项已补）；plan.todo M2 proptest 试点按 26-08-31 定案标 ✘ 不激活 + 表头补 M3
+- CI lcov「归档」名实一致化：coverage 步骤后接 `actions/upload-artifact@v7`（lcov-report，if-no-files-found: error）；v7 为当前最新主版本（v6+ 需 runner ≥2.327.1，GitHub 托管 runner 满足）
+- cargo audit 现状归档：14 条 allowed warnings 非白名单（presenter 对非 deny warning 的固定措辞，仓库从未配 audit.toml）、全部源自 dioxus 桌面依赖链（GTK3 停维 ×9 + glib/fxhash/paste/proc-macro-error + rand 0.7），性质非漏洞 + 平台错位（Linux 桌面链不进发布产物）+ 上游无修复 → 不 deny 不 ignore；语义与全景表沉淀 [cargo-audit-behavior.md](cargo-audit-behavior.md)
+- 门禁：fmt/clippy/test 77 绿/audit exit 0（fetch 走代理）+ check-links.py 通过
+## 2026-08-31 · M2 StaticSiteSource 全量落地（镜像/TOC/落库/更新闭环 + 真实站点验收）
+
+- M2 五切片一天内闭环（依赖钉版 → 边界/镜像 → TOC → 落库/碰撞 → 门面接线/更新）：`mirror_site` 递归镜像（同源+路径前缀双限界+四重限额）、`build_toc`（mdBook ≥0.5 `toc.html` 与 0.4.x 内嵌双形态）、`snapshot_pipeline`（D-08 检测前置：stage 比对 tree oid 再决定 commit）、`scan_case_collisions` + `SnapshotMeta.case_collisions` 落库、`AppService::add_book`/`update_book` 接线；tests/ 目录首建（httpmock 14 集成测试）；真实站点验收 TRPL 175 文件/114 页/25 章（#[ignore] 手工跑）
+- 坑沉淀：① **html5ever `noscript` 降级**——`<noscript>` 内元素被解析为转义文本节点，mdBook ≥0.5 的 `<iframe src="toc.html">` 在其内，选择器抓不到，需正则兜底从文本找回（[gix-windows-pitfalls.md] 同类：库语义必须实测）；② **PS 5.1 中文再咬人**——`-replace`/`Set-Content` 往 .rs 写中文即编码损坏（字符串原地变 mojibake 且无法逆向修复，只能整体重写），powershell-encoding 坑 8 的变体，对策同：中文一律走 Write 工具/UTF-8 文件；③ **httpmock 同路径多 mock 匹配序不定**（HashMap 迭代序），测试重灌 mock 必须 `server.reset()`；④ **`#[cfg(test)]` 代码对集成测试不可见**——集成测试链接的 lib 编译不带 `cfg(test)`，诊断 eprintln 失效的根因
+- 定案回写：镜像边界「同源+路径前缀」入 project.md §11 新块记；D-08 检测前置实现（stage_tree/commit_tree 拆分，跳过空提交不写对象）——D-08 语义无变化，仅实现注记
+- 覆盖率：cargo-llvm-cov 接入（总 90.7% / static_site 94.9%），CI core-quality 挂 `--lcov`
+- 门禁：fmt/clippy/test 77 绿（63 lib + 14 集成）/ audit exit 0 / check-links.py 通过；真实站点验收经 `--ignored` 手工执行通过
+- 坑沉淀展开落盘：[powershell-encoding.md](powershell-encoding.md) 补坑 9（cmdlet 直接读写中文源码 = 原地 mojibake 不可逆）/ [gix-windows-pitfalls.md](gix-windows-pitfalls.md) 补检测前置模式（M4 复用）/ 新建 [html-scraper-pitfalls.md](html-scraper-pitfalls.md)（noscript 降级 + 嗅探 + :scope 实测，M3 复用）与 [rust-testing-pitfalls.md](rust-testing-pitfalls.md)（httpmock 匹配序 / cfg(test) 不可见，M4/M5 复用）
+## 2026-08-31 · Rust 三 skill 对照审查落地三项修复（错误语义/missing_docs/测试工具去重）
+
+- 背景：对 `crates/` 做 rust-best-practices / rust-async-patterns / rust-testing 三 skill 符合度审查（约 90% / 95% / 80%），用户确认三项差距后全部执行。
+- ① 错误语义：`CommandQueue::enqueue` 队列关闭原来误用 `Error::Git` 兜底 → 新增专用变体 `Error::QueueClosed`，git 兜底变体回归纯 git 语义。
+- ② 文档门禁：mdor-core 开 `#![deny(missing_docs)]`，一次补齐 13 个文件模块级 `//!` 与 `SourceKind` 枚举/变体 doc；坑点：该 lint 对 `pub mod` 声明要求被指向文件含模块级文档，影响面比"枚举字段"大。
+- ③ 测试工具去重：`temp_dir` 逐字重复 5 处 + snapshot.rs 内联 1 处 → 下沉 lib.rs `#[cfg(test)] pub(crate) mod test_support`，6 个测试模块改引用；不建 `tests/` 目录（公共 API 暴露 + 跨层依赖倒挂），M2 httpmock 集成测试落地时再评估拆分。
+- 结论：三项均为卫生收敛，无新坑/新决策，不新增专题文档。
+- 测试基建排期沉淀：tests/ 目录（M2 随 httpmock 首建）/ cargo-llvm-cov（M2 接入，tarpaulin 不支持 Windows）/ proptest 触发线（① M5 SnapshotMigrator 主受益 ② M2 versioning 试点）已登记 plan.todo M2「测试与验收」+ ROADMAP + project.md §10。
+- 门禁：fmt --check / clippy -D warnings（顺手修 1 处 needless_borrow）/ test 41 绿 / audit --no-fetch exit 0（fetch 网络瞬断为既有坑）+ check-links.py 通过。
+## 2026-08-30 · CI core-quality 首跑闭环：抓 MissingCommitter 产品级 bug → 修复 → 全绿（M1 验收全闭环）
+
+- M1 最后一项验收闭环：feature/m1-core → master ff-only 纯快进（28 提交，b5de42b）push 后 Actions core-quality 首跑 **test 步骤抓 2 失败**——`GitRef(...MissingCommitter)`：`edit_reference` 的 reflog committer 依赖环境 git 身份（`committer.name`→`user.name`→env），CI runner 无身份即爆；本机/VM 有全局身份被掩盖，**Android 真机同炸**（M6 才会暴露的产品级 bug，CI 提前抓到）。`refs/mdor/versions/*` 不在 reflog 自动创建清单故 tag 未触发。
+- 修复（481b8df）：`edit_references_as([edit], Some(sig_ref))` 显式指定 reflog 身份，与 commit 签名同源（`MDOR_IDENTITY_NAME/EMAIL` 常量共用）；新增回归测试 `reflog_writes_mdor_identity`（断言 `.git/logs/HEAD` 含 `mdor <mdor@localhost>`，有身份机器防回退）。重跑 CI 全绿（41 测试）。
+- 沉淀：[gix-windows-pitfalls.md](gix-windows-pitfalls.md) API 实测节新增「edit_reference reflog 身份坑」（**M2/M4 自建 ref 复用要点**）。
+- 附带：checkout@v4 → v5 消除 Node 20 弃用 annotation（5db3c45，唯一 warning 为平台噪音）。
+- 知识沉淀盘点：本会话知识点核对三份既有专题（gix-windows-pitfalls / cargo-audit-behavior / powershell-encoding），除上述 reflog 身份坑外无新增——PS 显示乱码≠损坏为既有坑 4/8 精确覆盖，audit 网络瞬断非稳定教训。
+- plan.todo「CI core-quality 实跑验证」勾选 @done(26-08-30 23:40)；M1 全量验收（含遗留块）至此全部闭环，下一里程碑 M2。
+- 门禁：fmt/clippy/test 41 绿/audit exit 0（本地 --no-fetch，advisory-db 网络瞬断）+ CI 实跑绿 + check-links.py 通过。
+## 2026-08-30 · D-09 gix Windows 侧六项实测闭环 + 大小写碰撞静默覆盖实证 + 检测/标注排期定案
+
+- M1 遗留「D-09 gix Windows 侧实测」在 Windows 宿主闭环（NTFS + Git for Windows system autocrlf=true 毒药环境）：六项全过，回归测试钉于 `store/snapshot.rs` `#[cfg(windows)]` 模块（commit 905666b），`cargo test -p mdor-core` 40 绿（34+6），门禁 fmt/clippy/audit 全绿。ubuntu CI 编译期自动剔除。
+- 关键实证：① 裸 init 探针证实 gix 读 system 级配置（helix #6467 同款毒药环境本机即有），mdor 双施加点压成 false + CRLF 字节端到端保真；② ignorecase 自动探测实证（init 写 `core.ignorecase=true`）；③ ~350 字符长路径 checkout 无碍；④ **大小写碰撞 checkout 静默覆盖**（无告警，树序后者胜出、前者字节丢失）——gix 不提供知情信号，tree 级检测前置（D-09 定案 3）是实现「标注」的唯一可行位置。
+- 排期定案：定案 3 拆三件——tree 级检测 + SnapshotMeta 碰撞字段落库归 **M2**（M4 复用、报错选项 M2 接线）；归一 + 标注渲染归 **M3**（Windows 单渲染=工作区直读 D-10 自然退化，标注不依赖 blob 直接读）。plan.todo M2 加检测任务。
+- 沉淀：[gix-windows-pitfalls.md](gix-windows-pitfalls.md) 开放问题节重写为实测结论 + 排期注记；decisions.md D-09 状态→已实测 + 实测结论六项 + 排期定案；diff.md §4.4/§4.5 收敛；project.md §11 补排期指针；ROADMAP 当前焦点 40 绿 + 开放问题清理。
+- 待办：plan.todo「CI core-quality 实跑验证」随 feature/m1-core → master 合并执行（ff-only，D-14 直推保线性），Actions core-quality 绿后勾选。
+- 门禁：fmt/clippy/test 40 绿/audit exit 0 + check-links.py 通过。
+## 2026-08-30 · M1 书架视觉验收闭环（ubuntu-dev VM 首次 GUI 调试）+ WebKit EGL 崩溃根因沉淀
+
+- M1 遗留 @critical「书架弹窗视觉确认」在 ubuntu-dev VM 闭环：SSH 带 X11 env 起 `cargo run`（Xwayland）→ seed 2 本书渲染（像素分析 8 文本行段 = 1 标题 + 2 条目组）→ `gnome-screenshot` 取证 → 用户 VirtualBox 肉眼复核通过。质量门禁 VM 实跑全绿（fmt/clippy/test 34/audit exit 0）。
+- 核心坑：VirtualBox VMSVGA 模拟 VMware（vmwgfx）× nix mesa ≥25 已移除该 DRI 驱动 → WebKit GPU 进程 EGL 初始化崩（`EGL_BAD_PARAMETER`）→ WebProcess 反复自杀黑窗。环境变量绕不过，解法 = llvmpipe 软渲染 + `__EGL_VENDOR_LIBRARY_FILENAMES` 指到 `nixpkgs#mesa`（devShell 的 mesa-libgbm 无头子集缺 libEGL_mesa）。变量矩阵试错多轮，最终 strace openat 一击定位（glvnd 读系统 vendor json 找不到 libEGL_mesa）。
+- 网络事实更正：VM 从未配置 NIC2 Host-Only，SSH 实际走 NAT 端口转发（10.0.2.15:22）——env.md §1 补【已替换】块、ubuntu-vm-setup.md §0.2 加更正注。
+- 沉淀：[ubuntu-vm-setup.md](ubuntu-vm-setup.md) 新增「GUI 调试操作要点」（完整环境变量组合 / 成功判据=WebKitWebProcess 存活 / strace-ctypes-strings 诊断三件套）；env.md §6 排查表补 EGL 坑 + gnome-screenshot AccessDenied 坑；plan.todo 勾阶段3。
+- 补充沉淀（同日第二轮）：① nix-daemon 持久代理 × clash 停运 = `nix build` 全断的误诊陷阱（curl 通 + nix 报 connect 127.0.0.1 失败即查 daemon env）→ [nix-mirror-proxy.md](nix-mirror-proxy.md) 代理架构节；② agent 不支持读图 → 截图像素分析固化为 [script/shot-analyze.py](../script/shot-analyze.py)（三 fixture 冒烟全过）+ **临时脚本三次法则**成文（script/AGENTS.md 规则节 + 根 AGENTS.md 指针 + scripts.md 临时探针台账）。
+- 阶段4 全部闭环：env-ready 快照已打（26-08-30 用户侧）。~~VM 环境块阶段2/3 仍待做~~【更正 26-08-30 晚】阶段2/3 已全部闭环：阶段3 实测早已完成（opencode 1.18.21 + auth 2 credentials + 5 skills deploy + devShell 继承式启动）；阶段2 补装 Starship 1.26.0 后闭环（skills-manager GUI+CLI 1.34.2 早已在 profile）；GUI 冒烟一次即失败（bwrap uid map 被 Ubuntu apparmor userns 限制拒绝，未到 WebKit 层，不重试）。plan.todo VM 环境块全勾；环境侧细节见 [ubuntu-vm-setup.md](ubuntu-vm-setup.md)。
+- 门禁：VM 内 fmt/clippy/test/audit 全绿 + check-links.py 通过。
+## 2026-08-30 · 环境侧 /etc/nixos home-manager 接线两坑修复（users 传路径 + extraSpecialArgs 包裹 inputs）
+
+- 环境侧 flake（/home/morr/nixos-config/default）`nix build` 连续两错：① `home-manager.users.morr = import ./home.nix { inherit inputs; }` 手动调用模块函数只给 `inputs` → `function ... called without required argument 'config'`；② 改传路径 `./home.nix` 后 `home-manager.extraSpecialArgs = inputs;` 摊平 flake inputs（specialArgs key = self/nixpkgs/charmbracelet-nur…），home.nix 声明 `{ inputs, ... }` 解析不到 → infinite recursion（栈内 `argument `inputs` is not externally provided, so querying `_module.args` instead`）。
+- 修复（官方最佳实践，home-manager manual NixOS module 节）：`home-manager.users.morr = ./home.nix;` + `home-manager.extraSpecialArgs = { inherit inputs; };`；仅改 flake.nix，home.nix 无它改（inputs 只在 imports 用）。
+- 诊断法沉淀：`nix eval --impure --expr` 最小 nixosSystem + 假 inputs 复现（摊平复现 / 包裹通过）；`--show-trace` + 读 `lib/modules.nix` `applyModuleArgs` 定位 fallback；root 构建 `$HOME not owned by you` 与 dirty tree 警告无害可忽略。
+- 沉淀：新建 [nixos-home-manager-flake.md](nixos-home-manager-flake.md)（`graduation_status: candidate`，跨项目可复用）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-30 · D-16 VM 基座复核（维持 ubuntu+nix）+ ubuntu-dev 装 opencode
+
+- 复核「备用 VM 是否换 NixOS 以一步迁移 nixos-wsl 声明式配置」：dev 层 `flake.nix` 本就 WSL/VM 两侧单源零差别；ubuntu+nix 双源（apt 底座 + Nix 工具）风险由「遮蔽即钉版」（devShell 内 PATH 置顶 store + PKG_CONFIG_PATH + rpath）兜底；不换两主因 = ① NixOS 上 VirtualBox Guest Additions 兼容风险（GA 是 GUI 调试/USB 直通前提）② ubuntu-dev 已装好没必要重来。
+- 决策：维持 ubuntu+nix；D-16 补【已否决】[NixOS VM 复用作 VM 基座](../doc/decisions.md#nixos-vm-复用作-vm-基座)块 + 状态表加「已复核 2026-08-30」行。
+- ubuntu-dev 阶段 3：`nix profile install nixpkgs#opencode` 已装 **1.18.21**；`install` 为 `add` 的 deprecated 别名（warning 正常）、`nixpkgs#opencode` 按 attrpath 定顶层包不与 `haskellPackages.opencode`/`cc-switch` 混淆、opencode 无 apt 源——坑注沉淀于 [ubuntu-vm-setup.md](ubuntu-vm-setup.md) 阶段 3。
+- 待办：auth login / skills deploy / 阶段 4 验收 + 快照，随 VM 环境收尾一并更新 plan.todo。
+- 门禁：check-links.py 通过。
+
+## 2026-08-29 · PS 5.1 stdin 管道中文损坏坑补充 + commit 消息修复
+
+- 提交 docs 批次时，`@'…'@ | git commit -F -` 在 PS 5.1 下把提交信息中文字符全写成字面 `?`（0x3F）——根因是管道写原生命词 stdin 用 `$OutputEncoding`（默认 ASCII），与已知 stdout GBK 解码坑（powershell-encoding 坑7）同族反向；`cmd /c` 直读原始字节仍 `?` 证实字节级损坏、非显示伪影。
+- 修复：`git commit --amend -F <UTF-8 无 BOM 文件>`（未推送，安全 amend），commit afcec32 中文完好。
+- 沉淀：[powershell-encoding.md](powershell-encoding.md) 补坑8 + summary/updated 同步；对策 = 中文喂原生命词用 `-F <UTF-8文件>` 或先 `$OutputEncoding=UTF8`。
+- 门禁：check-links.py 通过。
+
+## 2026-08-28 · ubuntu-dev VM 环境准备（M0 桌面）+ Nix 国内镜像/代理链路沉淀
+
+- 会话：从裸 Ubuntu 24.04.4 搭起备用环境（D-16 三端）到 M0 桌面可用——阶段0 最小配置（Guest Additions / openssh-server(Host-Only) / git / Nix multi-user+flakes / SSH clone / 快照）→ 阶段1 `nix develop` + direnv+nix-direnv（`direnvrc` source + `direnv allow`，`/.direnv` 已 gitignore）→ 阶段2 skills-manager GUI+CLI + Starship → 阶段3 opencode（`nixpkgs#opencode` + 继承式启动）→ 阶段4 验收 + 快照。
+- 慢速根因链：国际直连 `static.rust-lang.org` 仅 ~50–80KB/s 为真实瓶颈（关宿主机 TUN 后真直连更慢=证实）→ 对策 = 绕开而非调代理：国内镜像矩阵实测（nix 缓存 USTC/TUNA/SJTU；rust-static **USTC VM 直连 403→弃 / rsproxy 可用 / SJTU 200 / TUNA·BFSU 404**；crates rsproxy sparse）+ 工具链 fixed-output 预置 `nix-store --add-fixed`。
+- 代理架构：nix **client 吃 shell 代理、nix-daemon 不吃**（须 `systemctl edit nix-daemon` 注入 8 行环境，大小写都配）；`sudo -E` 对 nix 无效；clash `external-controller`(9090, clashctl ui 打印) ≠ `mixed-port`(7890)；`clashctl off` 不清当前 shell 导出变量（假直连）；宿主机 TUN + VM clash = 双代理链。
+- 沉淀：新建 [ubuntu-vm-setup.md](ubuntu-vm-setup.md)（操作手册, procedure）与 [nix-mirror-proxy.md](nix-mirror-proxy.md)（通用镜像/代理专题, lesson/experience/decision）；[env.md §1](../doc/env.md#开发环境拓扑) ubuntu-dev 行补操作手册指针。
+- 执行状态（本机）：阶段0/1 已闭环（nix flake check ✅ / cargo test 34 绿 / dx 0.7.10），阶段2-4 待做；进度权威记录 = `plan.todo`「ubuntu-dev VM 环境」块。
+- 门禁：check-links.py 通过。
+
+## 2026-08-27 · M1 全量落地（六切片）+ gix 存储基座实测
+
+- 切片1 书架持久化（error.rs thiserror + `write_json_atomic`/`read_json_capped` 1MB + LibraryStore 提交点）；切片2 阅读进度（ReadingPosition + ProgressStore RenameOnly）；切片3 gix 基座（BookRepo init/自建 commit/版本 tag/checkout 硬切换 + D-09 双施加点 + blob 跨版本去重 + CRLF 字节保真）；切片4 tracing（core 打点门面 + app fmt/RUST_LOG）；切片5 服务接线（SourceAdapter/Registry + PositionMigrator/PathMigrator + AppService 薄门面 + Command 串行队列 + BookStore 孤儿同步清理 + 书架渲染真实数据）；切片6 ci.yml core-quality。
+- 验证：`cargo test -p mdor-core` 34 绿、fmt/clippy/audit(exit 0) 全绿；WSLg 桌面日志证明书架渲染读取 library.json（609 字节 seed 无错误）。视觉截图受限：WSLg 合成器不支持 wlr-screencopy（grim）、nixpkgs imagemagick 无 X11 delegate。
+- gix 0.87 实测：checkout 无高层 API，须直依赖 gix-worktree-state；D-09 结论回写 decisions/diff/cairn（Linux 通过、Windows 五项遗留需宿主机）。
+- 决策：孤儿清理同步执行（防 add_book 建目录→登记 TOCTOU，升级门写入 store/mod.rs）；AppService 注入用 OnceLock（Dioxus GlobalSignal 因 UnsyncStorage 非 Sync 不适用）。
+- 待办：CI 实跑（推送 master）、M2 StaticSiteSource。门禁：check-links.py 通过。
+
+## 2026-08-27 · nixos-wsl 工具链单源化 + direnv 自动加载 devShell
+
+- 早前中断的 rustup 下载遗留残缺 1.97.1 工具链（Missing manifest）；系统 rustup 1.29.0 代理在 `/run/current-system/sw/bin`。定位为非 flake 问题（rust-bin 原子构建不可能残缺）→ 环境治理：`/etc/nixos/module/dev/rust.nix` 移除 rustup+cargo（保留 rust-analyzer）+ 仓库根 `.envrc`（`use flake`，nix-direnv）+ `direnv allow` → cd 进仓库自动加载 devShell。
+- 关键认知：opencode 的 bash 工具是非交互 shell，direnv 不生效；agent 要吃到 flake 工具链须在已加载 devShell 的交互终端里启动 opencode（继承式）。shell.args 方案不成立——当前 opencode schema `shell` 仅字符串；且 home-manager `.bashrc` 有 `[[ $- == *i* ]] || return`，`-l` 非交互登录被早退拦掉 direnv hook。
+- 残余：`~/.rustup` 已清理；Windows 宿主 scoop rustup-msvc 不受影响（M0 桌面）。
+
+## 2026-08-27 · NixOS-WSL vscode-server 架构边界 + 自定义仓库扩展安装复核
+
+- 会话：梳理「在 NixOS 从指定仓库装 VS Code 扩展（aliveranme/Rebuild-gitlens，脱订阅校验的重打包 GitLens）」，核定 `services.vscode-server` 模块（nixos-vscode-server）**不管理扩展**、只 patch 客户端自动下载的 server 二进制；server 本体由宿主机客户端下载管理、与客户端绑定，无法 Nix 声明。
+- 结论：Remote-WSL 拓扑下扩展只能走**客户端安装**（`code --install-extension` / GUI Install from VSIX）自动同步进 WSL server；`vscode-with-extensions` 属「NixOS 当客户端」拓扑，与 Windows 宿主对接不相容。
+- 沉淀：新建 [nixos-wsl-vscode-server.md](nixos-wsl-vscode-server.md)——架构（nix-ld vs services.vscode-server 两类声明式 enabler、扩展声明边界）+ Rebuild-gitlens vsix 安装 procedure（Releases API digest→sha256 技巧复用自 nix-env-tooling 坑 6）+ 教训（模块职责边界凭 option 核实、`vscode-with-extensions` 非 Remote 通用）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-26 · 遥测链路设计 + 模块边界内核 + mdor 日志基座沉淀
+
+- 会话产出（跨项目遥测设计讨论）：多语言（Python×2 / JS 浏览器 / Java）分布式高频遥测链路完整设计归档 [telemetry-schema-registry-design.md](telemetry-schema-registry-design.md)——形态 A（定义层 schema 注册表 + 运行时本地分发）、统一 WebSocket 信封（WS1/WS2 为连接腿标签、per-payload v/ts/seq、WS1 zstd / WS2 deflate、wss）、JSON Schema vs Protobuf+buf 双线工具链（含 Avro 备选）、落地路径；含教训「10ms 连续值=指标非日志」。
+- 可复用内核 [module-boundary-contract-design.md](module-boundary-contract-design.md)：纵切模块×横切数据链路×共享底座；契约=定义/触点=绑定；私有 vs 共享类型；改类型「四处辐射」；形态 A；对 AI/vibe-coding 冲突规避的价值；并入静态/运行时架构项目化一句。
+- mdor 侧决策 [mdor-logging-base.md](mdor-logging-base.md)：M1 切片4 日志基座（tracing）——core 只打点、桌面 RUST_LOG、不引分布式全家桶（留 OTel 门）、M6 appender+logcat（对应 plan.todo）。
+- 命名教训：WS1/WS2 连接腿标签撞名 `ws://` 协议被误当"WebSocket 版本"——文档给连接/组件起标签应避免与既有技术名词撞名（见 telemetry-schema-registry-design.md 约束表）。
+- 外部资料参考：三支柱/工具链背景单开 [Reference/observability-toolchain-basics.md](Reference/observability-toolchain-basics.md)（外部资料定位，只增不改）。
+- 门禁：check-links.py 通过。
+
+## 2026-08-26 · skills-manager CLI 备份同步机制探索 + 会话知识沉淀
+
+- 会话过程：`git pull` 报 unrelated histories——本机 `git init` 独立空骨架历史 vs 远端（Windows 机）真实备份无共同祖先；本地无数据故 `fetch origin` + `reset --hard origin/main` 对齐远端历史；随后 opencode 识别不到 skill——根因是「git 同步库 ≠ deploy 到 agent 全局目录」两步机制，`skills deploy --agent opencode` 后生效；`presets add-skill` membership 存 SQLite `scenario_skills`（多对多），只改 DB 不部署。
+- 沉淀：新建 [skills-manager-cli.md](skills-manager-cli.md)——备份同步机制（中央库=普通 git 仓库、DB 不入 git 从文件重建、快照 tag `sm-v*`、冲突永不覆盖进 pending_conflicts、勿 raw `--mirror/--all` push 污染 refs/skills-manager/*）+ Q1 远端拉取（`git clone <URL>`，避免 init 撞坑）/ Q2 本地同步（commit→push、pull 行级合并、versions/restore）+ 常用操作速查 + 开放问题（冲突裁决 CLI 缺失、preset membership metadata 往返待实证）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-26 · mdor 项目 flake 落地 + Nix 环境侧外围工具（skills-manager / Starship）
+
+- **项目侧 flake**（`flake.nix`，D-16 环境复现单源落地）：Rust 工具链改 `rust-bin.fromRustupToolchainFile ./rust-toolchain.toml` 单源钉 1.97.1（`profile=minimal` 不含 rustfmt/clippy，须 `.override` extensions 补 rustfmt/clippy/rust-src/rust-analyzer，否则 treefmt 初始化失败）；dx 0.7.10 由 shellHook `cargo install --locked` 钉版（幂等判断须用 `$HOME/.cargo/bin/dx` 绝对路径，非交互 bash PATH 无 `~/.cargo/bin`）；devShell 补 cargo-audit/outdated/edit + dioxus 桌面库（webkitgtk_4_1/gtk3/libsoup_3/gdk-pixbuf，实链接还缺 `libxdo`→补 `xdotool`）。`nix flake check` / `nix fmt --fail-on-change` / 门禁 fmt+clippy+test / `cargo audit`(exit 0) 全绿；`flake.lock` 生成。D-16 与 [env.md §1 拓扑](../doc/env.md#开发环境拓扑) 注明 Android SDK/NDK/JDK 的 flake 声明式锁定 = M6 待办（Nix 声明即实例化、M0 用不到）。
+- **环境侧 `/etc/nixos`**：新增 `module/dev/skills-manager.nix`（overlay 暴露 `skills-manager` GUI = AppImage wrapType2 + `skills-manager-cli` = 官方二进制 + patchelf，锁 v1.34.2；Linux 无 in-app 自更新→声明式锁版）+ `home.nix` 装两包 + `programs.starship`（双行全信息、默认配色）。CLI 已实构建验证（ldd 0 not-found、`repo status` 通）；GUI 构建慢（100MB AppImage 解包）未本地构建，交 rebuild。
+- **坑**：wrapType2 新版须 `pname`+`version`（`name` 报 extract 缺 version）；CLI patchelf 漏 `xz` 致 `liblzma.so.5 not found`；flake 新文件须 `git add` 否则「not tracked」；`nix build/eval '.#nixosConfigurations…config…'` 深层 attrpath 不可用，验证单包用 `dry-run` 取新 drv + `nix-store --realise`；`dry-run` 只 dry 计划不实构建。
+- 沉淀：新建 [nix-env-tooling.md](nix-env-tooling.md)（项目/环境双 flake 分工 + skills-manager 打包方案与坑 + Starship 配置 + ubuntu-dev VM 粘贴即用脚本）与 [nix-project-flake.md](nix-project-flake.md)（项目侧 flake：Rust 单源 fromRustupToolchainFile / minimal profile 缺 rustfmt-clippy / libxdo→xdotool / dx shellHook PATH 幂等，`graduation_status: candidate`）。
+- 毕业候选（标记 `candidate`，未执行 provider write）：Nix 声明式打包与工具链经验（patchelf 外部二进制 / AppImage wrapType2 / fromRustupToolchainFile 坑，见 nix-env-tooling.md + nix-project-flake.md）——跨项目可复用。`.cairn/config.yaml` 已配 `provider: obsidian`；实际毕业前需 obsidian-preflight + INDEX 查重 + 人工确认（本次仅标记候选）。
+- 更正（同日）：skills-manager **GUI 从 nixos-wsl 撤除**——WSLg 实测可显示到宿主机（`/mnt/wslg` + `DISPLAY=:0` + `WAYLAND_DISPLAY=wayland-0` 均在），但 100MB AppImage 构建耗时（>10min）且 webkit 在 WSLg 下偶发渲染问题（D-16）；`module/dev/skills-manager.nix` 只保留 `skills-manager-cli`（patchelf 版），`home.nix` 注释 `skills-manager` 行备恢复；GUI 定义与安装移交 ubuntu-dev（见 nix-env-tooling.md ubuntu 脚本）。
+- 门禁：`check-links.py` 通过。
+
+## 2026-08-24 · 开发环境三端架构定稿（D-16）+ VirtualBox 安装坑沉淀
+
+- 会话起于 VirtualBox「invalid installation directory」安装报错：哈希比对证明镜像站文件完好后定位为 7.0.14+ 目录安全校验；官方 icacls Deny 配方反噬管理员（`Authenticated Users` 在任何管理员令牌内，Deny 优先 → MSI 1303），改 `/inheritance:r` + 仅授 RX 解决。VirtualBox 7.2.16 落地 `D:\VirtualBox`。
+- 架构决策 [decisions.md D-16](../doc/decisions.md#d-16-开发环境三端架构)：宿主机原生管桌面构建+安卓模拟器；**nixos-wsl 为日常主力**（Remote-WSL/SSH + 交叉编译，产物 adb connect 推宿主机模拟器）；ubuntu-dev VM（24.04.4 已装）备用，仅 dioxus 桌面调试与真机 USB 直通时启用；环境复现单源 = 仓库 `flake.nix`，WSL/VM 共用。VM 内跑 AVD 因嵌套虚拟化被否决。
+- 沉淀：新建 [vbox-windows-install.md](vbox-windows-install.md)（坑链 + 正确 icacls 配方 + `%TEMP%\MSI*.LOG` 排查法）；[env.md §1](../doc/env.md#1-环境总览与版本矩阵) 新增「开发环境拓扑」小节落事实。
+- 待办：flake.nix 编写、Android Studio(scoop)/SDK/AVD 迁 D 盘、VM 备用化最小配置——均未执行。
+
+## 2026-08-23 · opencode 会话备份两段式编码坑（UTF-16 容器 + GBK 管道损坏）
+
+- opencode 会话备份导入两连败：先「Unrecognized token '�'」（PS 5.1 `>` 落盘 UTF-16 LE，教训 6）；转码修好容器后仍报错——根因是导出时 PS 管道把 opencode 的 UTF-8 stdout 按 GBK 解码，中文固化为 652 个 PUA 字符 + `?` 替换，**内容导出即损坏、不可逆**。
+- 修复：`cmd /c "opencode export <id> > file"` 直通原始字节重导出——JSON 解析通过、4904 汉字完好，`opencode import` 成功恢复会话 ses_fd0e80a5。
+- 沉淀：[powershell-encoding.md](powershell-encoding.md) 教训区新增第 6 条（UTF-16 LE 写侧）与第 7 条（管道捕获损坏）+ 当前结论补「UTF-16 → UTF-8 转码」「cmd 直通原始字节」两姿势 + 实践指南补导出三件套断言；summary 同步。
+
+## 2026-08-23 · UI 框架选型论证留痕（D-15）+ webview 差异专题扩充
+
+- 会话讨论「Dioxus 是否抹平 webview 差异」引出选型论证补记：新建 ADR [decisions.md D-15](../doc/decisions.md#d-15-ui-框架选型)——Dioxus 选型留痕 + 四路线否决理由（Tauri/Electron/Flutter/自绘 Rust）；project.md §1.2 补反向链接。
+- 核心定性：wry/Dioxus 只抹 API 封装层不抹引擎差异；样式碎片化可对冲（内联 CSS），**性能随系统 WebView 版本浮动不可对冲**，只能架构性压小依赖面。
+- 沉淀：[webview-host-differences.md](webview-host-differences.md) 教训区新增第 7 条（API 抹平边界 + 性能碎片化）；新建 [ui-framework-selection.md](ui-framework-selection.md)（四路线横向对比背景知识，论证细节链接回 D-15 不复制）。
+- 工具链：check-links.py 扫描范围扩至 cairn/ 顶层（跨文件目标改按源文件目录相对路径解析，负例冒烟通过）——修复「cairn→doc 链接不被门禁覆盖」盲区；LOG 两处根相对链接（`doc/…`）统一为源目录相对（`../doc/…`）；diff.md §2.1 补 D-15 导航指针。
+- 门禁：`check-links.py` 通过（245 anchors，含 cairn 侧新覆盖 6 处）。
+
+## 2026-08-21 · 小节标题统一为中文（zh-glossary）+ 毕业候选盘点
+
+- 14 篇知识专题文档的英文小节标题按 zh-glossary 固定词统一：Lessons→教训、Current Conclusions→当前结论、Practice Guide→实践指南、Open Questions→开放问题；文件名保持英文 slug（skill 规则：`language: zh` 只约束正文与标题，不改文件名）。
+- 过程坑：PowerShell 5.1 `Get-Content -Raw` 对无 BOM UTF-8 按 ANSI/GBK 误读，回写造成字节级损坏；从 `experiment/cairn-track` 分支（cairn/ 已跟踪、版本仅差一晚）按 blob 字节恢复后以 .NET UTF-8 无 BOM I/O 重做。已沉淀 [powershell-encoding.md](powershell-encoding.md)。
+- 毕业候选盘点完成（未写入知识库）：Tier A 四篇（cargo-audit-behavior / windows-scripts / metadata-write-reliability / cargo-config-toml）、Tier B 六篇（gix-windows-pitfalls 仅已验证部分 / windows-msvc-toolchain / android-cross-compile-rust / local-resource-channel / mcp-doc-retrieval / dioxus-cli-0.7-config）；Tier C 四篇不标记。毕业时需重跑 obsidian-preflight + INDEX 查重。
+- 更正：恢复源实为 master 自身历史——cairn/ 与 `.cairn/config.yaml` 均已被 master 跟踪（自 `68398e2` 起），并非依赖 `experiment/cairn-track` 分支；该分支与 master 完全同步、无独有内容（保留不删）。
 
 ## 2026-08-20 · manifest 收敛 workspace 层 + D-14 单人仓库协作决策定稿
 
 - `build(workspace)`：根加 `[workspace.package]`（version/edition/rust-version=1.97.1 统一）+ `[workspace.lints]`（unsafe_code=deny）；两成员 `version/edition/rust-version` 改 `workspace = true` 继承 + `publish = false`。门禁（fmt/clippy/test）全绿。
-- `docs`：单人维护 + 偶尔外部贡献的协作模式定稿——维护者直推 master 保线性、外部 PR 一律 squash 合入；决策留痕 [decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)，操作规范单源落仓库根 `CONTRIBUTING.md`（协作流程属约定不入 doc/，仅留痕不展开），AGENTS.md 补协作模式指针。
+- `docs`：单人维护 + 偶尔外部贡献的协作模式定稿——维护者直推 master 保线性、外部 PR 一律 squash 合入；决策留痕 [decisions.md D-14](../doc/decisions.md#d-14-单人仓库协作与外部贡献流程)，操作规范单源落仓库根 `CONTRIBUTING.md`（协作流程属约定不入 doc/，仅留痕不展开），AGENTS.md 补协作模式指针。
 - 门禁：`check-links.py` 通过（231 anchors）。
 
 ## 2026-08-20 · 便携 Android 工具链方案定稿（dev/ + 提交相对路径 .cargo 配置）

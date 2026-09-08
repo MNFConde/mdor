@@ -5,7 +5,7 @@ summary: "Android 交叉编译的约束与 TLS 选型：依赖纯 Rust 是硬约
 tags: [mdor, android, rustls, tls, cross-compile, reqwest, gix]
 contains: [lesson, decision, procedure, experience]
 created: "2026-08-16"
-updated: "2026-08-16"
+updated: "2026-08-21"
 related: [diff.md, decisions.md, env.md]
 authoring_mode: ai_generated
 ---
@@ -15,7 +15,7 @@ authoring_mode: ai_generated
 
 mdor 目标平台是 Android，但开发在 Windows 桌面进行，core 需在两平台行为一致。Android 无 OpenSSL、交叉编译 C 依赖痛苦、WebView 宿主差异大——这些决定了「依赖纯 Rust」成为硬约束。完整背景见 `doc/diff.md` §1/§6；决策记录见 D-11。
 
-## Lessons
+## 教训
 
 1. **Android 系统无 OpenSSL 库**：`native-tls` 在 Android 上走 OpenSSL，需用 NDK 把 OpenSSL C 代码交叉编译成 arm64（`openssl-sys` 找不到库 / 版本不匹配 / 构建脚本报错，著名坑）。这是技术栈「Android 无 OpenSSL 依赖」的根源。
 2. **rustls 不自动知道系统信任库**：根证书必须显式喂给。不喂 → 能编能跑但**所有 HTTPS 请求报 `certificate verify failed`**，下载功能全废。
@@ -32,14 +32,14 @@ mdor 目标平台是 Android，但开发在 Windows 桌面进行，core 需在�
 4. **Android 启动崩溃 `NoSuchMethodError getCurrentWindowMetrics`**：真机 API < 30 → 在 `Dioxus.toml` 设 `min_sdk_version = 30`。
 5. **cmdline-tools 目录结构必须 `cmdline-tools/latest/bin`**：否则 `sdkmanager` 不可用（解压后需 rename 为 `latest`，`doc/env.md` §2.5）。
 
-## Current Conclusions
+## 当前结论
 
 - **统一 TLS 栈（D-11）**：两平台统一 `reqwest`（`default-features = false` + `rustls-tls`）+ **`rustls-platform-verifier`**（Android 走 JNI 调系统证书验证，Windows 退回 SChannel——唯一同时解决两端、认用户/系统 CA 的方案）；gix 开 `http-client-reqwest` 复用同一 TLS 栈。
 - **加密 provider = `ring`**（轻量、免 cmake/perl、APK 体积小）；经 rustls `CryptoProvider` 抽象可插拔，切换 = Cargo feature 一行 + 重新打包，**不做运行时双 provider 注入**（体积翻倍）。备选 `aws-lc-rs`（触发：需 FIPS / 更广算法面）。
 - **rustls 稳定性评估**：足够稳定可用于生产（2016 年诞生、0.23 长期系列 + backport = 等效 LTS、独立安全审计 + OpenSSF 徽章、Prossimo 主导、Let's Encrypt 计划替换 OpenSSL）。注意点：0.x 按 semver minor 可破坏 API；「纯 Rust」需打折（ring 含手写汇编、无 FIPS）。mdor 为客户端、只访问知名站点，属最成熟使用面。
 - **版本对齐**：`rustls-platform-verifier` 与 reqwest 传递进来的 rustls 需在根 `[workspace.dependencies]` 钉同一 0.23.x（防双版本）。
 
-## Practice Guide
+## 实践指南
 
 - 选型朝「纯 Rust」靠：serde_json（非 SQLite）、gix（非 git2）、rustls（非 openssl），把 C 依赖排除在外。
 - 详情见 `doc/diff.md` §1.6/§1.8/§1.9/§6.3 与 D-11；工具链（NDK r29、JDK 21、android targets）安装见 `doc/env.md` §1/§2/§7；工具链坑与故障排查见 `doc/env.md` §6/§8，M0→M6 过渡清单见 §7。

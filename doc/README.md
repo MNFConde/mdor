@@ -58,7 +58,7 @@ graph TB
 - 锚点 = 标题转小写，去除 `（）、·、/、.` 等标点，空格 → `-`，中文保留（GitHub slug 规则）。例如 `## 6.8 解析器安全对照（serde_json 选型依据）` → `#68-解析器安全对照serde_json-选型依据`
 - 被抽取的决策统一收口到 [decisions.md](decisions.md)，规范文档只留摘要 + 链接
 - 方案状态标记约定（行内简记 = 链接 `[【当前】 …](#锚点)`；块记 = 独立小标题 + admonition callout；`【当前】` / `【备选】` / `【已否决】` / `【已替换】`）见 [AGENTS.md](AGENTS.md#方案状态标记doc-写作约定)
-- 锚点一致性检查：`uv run --directory script check-links.py`（扫描 `doc/` 下顶层全部 `.md` 文件、不递归；校验跨文件 + 站内锚点，跳过 fenced code block 与行内反引号代码；有不匹配即返回非零退出码）
+- 锚点一致性检查：`uv run --directory script check-links.py`（扫描 `doc/` 与 `cairn/` 下顶层全部 `.md` 文件、不递归；跨文件目标按源文件所在目录的相对路径解析，如 cairn/ 内指 doc/ 用 `../doc/x.md`；校验跨文件 + 站内锚点，跳过 fenced code block 与行内反引号代码；有不匹配即返回非零退出码）
 
 ## decisions.md 登记规则
 

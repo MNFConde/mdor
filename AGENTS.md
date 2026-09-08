@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前为骨架期：Cargo workspace（`mdor-core` + `mdor-app`）已建，core 业务模块按 plan.todo M1 推进；仓库另含 `doc/` 规划文档。
+mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当前状态：**M2 已落地并全量验收**——StaticSiteSource 递归镜像（同源+路径前缀双限界+四重限额）+ TOC 构建、自建 git 链快照落库（D-08 检测前置 + tree 级大小写碰撞检测）、`AppService::add_book`/`update_book` 接线、httpmock 集成测试 14 例 + fixtures/mdbook-static、cargo-llvm-cov 覆盖率接入；本地门禁 77 测试绿 + 覆盖率 90.7%（static_site 94.9%），真实站点 TRPL 验收（175 文件/114 页/25 章）通过；下一里程碑 M3（阅读器：内容抽取、资源协议、目录抽屉、滚动进度）按 plan.todo 推进（里程碑定义/验收见 [doc/project.md §10](doc/project.md#10-里程碑) 与 [cairn/ROADMAP.md](cairn/ROADMAP.md)，plan.todo 仅执行任务表）；仓库另含 `doc/` 规划文档。
 
 > 本项目使用 Project Cairn 组织项目知识：Cairn 全套规则（初始化配置/阅读顺序/文档职责/冲突仲裁/知识库消费反射/知识沉淀规则）见 `cairn/AGENTS.md`。
 > 本机装有 project-cairn skill 且仓库存在 `cairn/` 时生效；否则视为不适用，跳过。
@@ -22,9 +22,9 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 与用户交流一律使用中文
 - 指令若与仓库文档（`doc/`）或既有约定不符，先指出冲突点、说明取舍，再执行
 - 项目状态发生变化（如 M1 落地、workspace 建立、工具链变更）时，同步更新本文件对应的状态描述，避免误导后续会话
-- 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取
+- 提交格式规范见 `@.agents/rules/commit.md`，仅在准备 commit 时读取；提交相关经验/坑须登记于该文件「六」节
 - 协作模式（维护者直推 master 保线性 + 外部 PR squash 合入）见仓库根 `CONTRIBUTING.md` / [doc/decisions.md D-14](doc/decisions.md#d-14-单人仓库协作与外部贡献流程)
-- 目录级专属约束见 `doc/AGENTS.md`（doc/ 写作约定）与 `script/AGENTS.md`（script/ 目录约定），读取对应目录下文件时自动生效
+- 目录级专属约束见 `doc/AGENTS.md`（doc/ 写作约定）与 `script/AGENTS.md`（script/ 目录约定 + 临时脚本三次法则：同一分析/验证逻辑第 3 次出现必须固化进 script/ 并登记，固化后只准扩展；一次性诊断探针须在 scripts.md 台账登记、跨会话累计 3 次同样固化），读取对应目录下文件时自动生效
 
 ## 检索约定（MCP）
 
@@ -32,17 +32,18 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - MCP 对表格型（env.md 故障排查表/§8 记录）与长篇论证（decisions.md rationale）召回弱——须对 env.md / decisions.md / project.md 补手工核读；MCP 结果只作覆盖矩阵与排序，不替代全文召回
 - 坑与实证见 `cairn/mcp-doc-retrieval.md`
 
-## M0 桌面构建（唯一当前可用目标）
+## M1 后桌面构建
 
-- `cargo run -p mdor-app`（workspace bin）；桌面 UI：`dx serve --platform desktop`（需在 `crates/mdor-app/` 目录运行，Dioxus.toml 所在处；需 dioxus-cli 0.7.x + Win11 WebView2）
-- Windows 走 MSVC：`cargo build` 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
+- 工具链：进入仓库自动加载 flake devShell（direnv，`.envrc`）；`cargo run -p mdor-app`（workspace bin）可直接跑桌面并验证日志
+- 桌面 UI 弹窗验证：nixos-wsl 走 WSLg（flake 已含 webkit 等桌面库）；Windows 宿主机走 `dx serve --platform desktop`（在 `crates/mdor-app/` 目录运行，Dioxus.toml 所在处；需 dioxus-cli 0.7.x + Win11 WebView2）；Windows 报「找不到 link.exe」= VS Build Tools（钉版 v14.50）问题，与代码无关
 - Android 侧 M6 前不碰：本机未装 JDK / SDK / NDK；toolchain 已带 android targets（rust-std-{aarch64,x86_64}-linux-android，M6 打包时直接用）
 
-## 质量门禁（计划进 CI core-quality，本地保持一致）
+## 质量门禁（CI core-quality 已挂，本地保持一致）
 
 - `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` → `cargo audit`
 - `cargo audit`（需 `cargo install cargo-audit --locked`）是硬性要求（D-12），退出码非 0 即失败
 - 单测重点在 mdor-core（平台无关库），桌面直接 `cargo test -p mdor-core`
+- 提交前用环境中对应语言的 skill 审查改动（改了什么语言就用该语言的 skill），按审查结果修正后再提交（Dioxus 一律以 `dioxus-knowledge-patch` 为准，见 cairn/ui-framework-selection.md）
 
 ## 工具链钉版
 
@@ -56,3 +57,4 @@ mdor —— 移动端 mdBook 离线阅读器（Android · Rust + Dioxus）。当
 - 业务逻辑/渲染管线全在 core，app 层只做「拿 HTML 注入 + 交互」，不掺业务编排
 - project.md §3.2 C4 图由 `doc/mdor.c4` 生成：`likec4 gen mermaid . -o tmp`（工作区必须是仓库根、即 likec4.config.json 所在目录；否则 `**/archive_doc_v*/**` 排除不生效，`doc/archive_doc_v*/` 里的 mdor.c4 会被扫进来报重复定义）
 - §3.2 节点注记（如 `(v1 默认)` / `(M5 开放)`）必须写进组件 name：likec4 的 mermaid 标签只取 name（title/description/technology 不进标签），组件名规范为「类名 + (注记)」，id 与代码类名一致
+- 开发环境三端架构（宿主机原生 / nixos-wsl 主力 / ubuntu-dev VM 备用，flake.nix 单源）见 [doc/env.md §1 开发环境拓扑](doc/env.md#开发环境拓扑) 与 [decisions.md D-16](doc/decisions.md#d-16-开发环境三端架构)

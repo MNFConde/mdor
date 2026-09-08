@@ -10,3 +10,8 @@ workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["desktop"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true }
+tiny_http = { workspace = true }
+mdor-core = { path = "../../crates/mdor-core" }
