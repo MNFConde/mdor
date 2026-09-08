@@ -5,11 +5,47 @@
 
 mod common;
 
+use async_trait::async_trait;
 use httpmock::prelude::*;
+use mdor_core::error::{Error, Result};
 use mdor_core::model::position::ReadingPosition;
+use mdor_core::services::AppContext;
 use mdor_core::services::app_service::AppService;
+use mdor_core::services::commands::Command;
 use mdor_core::store::progress::Progress;
 use std::collections::BTreeMap;
+use tokio::sync::mpsc;
+
+/// 哨兵命令：排在被测命令之后入队，执行即证明前者已完成（队列串行 FIFO）。
+/// 代替盲 sleep/轮询等待——命令真实完成时点由通道确定性地通知测试。
+struct Sentinel {
+    tx: mpsc::UnboundedSender<()>,
+}
+
+#[async_trait]
+impl Command for Sentinel {
+    fn name(&self) -> &'static str {
+        "test_sentinel"
+    }
+
+    async fn execute(&self, _ctx: &AppContext) -> Result<()> {
+        self.tx
+            .send(())
+            .map_err(|_| Error::QueueClosed("哨兵通道已关闭".to_string()))
+    }
+}
+
+/// 入队哨兵并等待其执行（命令队列完成被测命令的确定性信号）。
+async fn await_queue_drained(service: &AppService) {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    service
+        .command_queue()
+        .enqueue(Box::new(Sentinel { tx }))
+        .expect("入队哨兵");
+    tokio::time::timeout(std::time::Duration::from_secs(30), rx.recv())
+        .await
+        .expect("哨兵应在超时前执行（被测命令已完成）");
+}
 
 /// 最小两页站：index → ch1。
 fn serve_v1(server: &MockServer) {
@@ -119,29 +155,16 @@ async fn update_creates_v2_and_migrates_position() {
     });
 
     service.update_book(&book.id).expect("入队成功");
+    await_queue_drained(&service).await;
 
-    // 命令队列串行异步执行：轮询等待 library 中 current_version 变化。
-    let mut v2 = String::new();
-    let mut last_err = String::new();
-    for _ in 0..500 {
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-        let current = service
-            .library()
-            .unwrap()
-            .into_iter()
-            .find(|b| b.id == book.id)
-            .unwrap()
-            .current_version;
-        if current != v1 {
-            v2 = current;
-            break;
-        }
-    }
-    // 直接同步执行一次同一命令以暴露真实错误（幂等：内容已变则正常产出 v2）。
-    if v2.is_empty() {
-        last_err = "同步复跑仍未产生新版本".to_string();
-    }
-    assert_ne!(v2, "", "更新应产生新版本（{last_err}）");
+    let v2 = service
+        .library()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == book.id)
+        .unwrap()
+        .current_version;
+    assert_ne!(v2, v1, "内容已变，更新应产生新版本");
 
     // 位置迁移：v2 中 ch1 仍在 → 直连；version_id 已是 v2。
     let opened = service.open_reading(&book.id).await.unwrap();
@@ -164,8 +187,8 @@ async fn update_without_changes_is_noop() {
 
     service.update_book(&book.id).expect("入队成功");
 
-    // 等待命令执行完成（内容未变 → library 不变）。
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    // 确定性等待命令完成（内容未变 → D-08 跳过空提交，library 不变）。
+    await_queue_drained(&service).await;
     let current = service
         .library()
         .unwrap()

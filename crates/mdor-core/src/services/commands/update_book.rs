@@ -5,6 +5,7 @@ use crate::error::{Error, Result};
 use crate::model::position::ReadingPosition;
 use crate::services::AppContext;
 use crate::services::commands::{Command, Progress as StageProgress};
+use crate::services::now_unix;
 use crate::services::snapshot_pipeline::{SnapshotOptions, commit_snapshot, save_version_record};
 use crate::store::library::Library;
 use crate::store::progress::Progress;
@@ -172,11 +173,4 @@ fn current_toc(ctx: &AppContext, book_id: &str, version: &str) -> Vec<crate::mod
         .flatten()
         .map(|r| r.toc)
         .unwrap_or_default()
-}
-
-fn now_unix() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }

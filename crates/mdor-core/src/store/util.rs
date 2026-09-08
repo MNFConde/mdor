@@ -61,7 +61,6 @@ pub fn read_json_capped<T: DeserializeOwned>(path: &Path, max: u64) -> Result<T>
         });
     }
 
-    let file = file;
     let mut buf = Vec::with_capacity(usize::try_from(declared.min(max)).unwrap_or(0));
     file.take(max + 1)
         .read_to_end(&mut buf)

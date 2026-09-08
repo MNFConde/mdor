@@ -37,13 +37,17 @@ pub fn open_book(book_id: String) {
     spawn(async move {
         match app.open_reading(&book_id).await {
             Ok(opened) => {
+                // 先取小字段再整体 move，避免克隆整个 OpenReading（含正文 HTML）。
                 let chapter = opened.chapter_html.title.clone();
+                let chapter_path = opened.position.as_ref().map(|p| p.chapter_path.clone());
+                let initial_anchor = opened.initial_anchor.clone();
+                let scroll_ratio = opened.scroll_ratio;
                 READER.with_mut(|r| {
                     r.book_id = Some(book_id.clone());
-                    r.open = Some(opened.clone());
-                    r.chapter_path = opened.position.as_ref().map(|p| p.chapter_path.clone());
-                    r.initial_anchor = opened.initial_anchor.clone();
-                    r.scroll_ratio = opened.scroll_ratio;
+                    r.open = Some(opened);
+                    r.chapter_path = chapter_path;
+                    r.initial_anchor = initial_anchor;
+                    r.scroll_ratio = scroll_ratio;
                 });
                 tracing::info!(book_id, chapter, "open_reading 渲染完成");
             }
@@ -58,17 +62,17 @@ pub fn switch_chapter(book_id: String, chapter_path: String) {
         return;
     };
     let app = app.clone();
-    let prev = READER.with(|r| {
+    let (scroll, anchor, current_path) = READER.with(|r| {
         (
             r.scroll_ratio,
             r.initial_anchor.clone(),
             r.chapter_path.clone(),
         )
     });
-    if prev.0 > 0.0
-        && let Some(current_path) = prev.2
+    if scroll > 0.0
+        && let Some(current_path) = current_path
     {
-        let _ = app.save_progress(&book_id, &current_path, prev.1, prev.0);
+        let _ = app.save_progress(&book_id, &current_path, anchor, scroll);
     }
 
     spawn(async move {

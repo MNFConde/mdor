@@ -223,9 +223,23 @@ fn entry_html_url(opts: &MirrorOptions) -> String {
     }
 }
 
+/// 进程级共享 HTTP 客户端（连接池 + keep-alive 复用；reqwest 约定 Client 应
+/// 全局复用，逐请求新建会各建 TLS 连接，镜像数百文件时代价显著）。
+fn shared_client() -> Result<&'static reqwest::Client> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client);
+    }
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| Error::Http(format!("HTTP 客户端初始化失败：{e}")))?;
+    // 并发落位竞争时 get_or_init 恒返回先存入者，后建实例被丢弃，语义不变。
+    Ok(CLIENT.get_or_init(|| client))
+}
+
 /// 单次 HTTP GET（reqwest，rustls，D-11）。
 async fn http_get(url: &str) -> Result<Vec<u8>> {
-    let resp = reqwest::Client::new()
+    let resp = shared_client()?
         .get(url)
         .send()
         .await
@@ -272,11 +286,6 @@ fn extract_title(files: &FileSet) -> String {
 /// 返回相对路径（URL path 落盘形态，已 sanitize）→ 字节。
 pub async fn mirror_site(entry_url: &str, opts: &MirrorOptions) -> Result<FileSet> {
     use std::collections::VecDeque;
-
-    let entry_path = url::Url::parse(entry_url)
-        .map_err(|_| Error::InvalidUrl(entry_url.into()))?
-        .path()
-        .to_string();
 
     let mut files = FileSet::new();
     let mut total_bytes: u64 = 0;
@@ -374,8 +383,7 @@ pub async fn mirror_site(entry_url: &str, opts: &MirrorOptions) -> Result<FileSe
         files.insert(rel, bytes);
     }
 
-    // 入口页不因抓取顺序变化：文件集无序，落库侧 content_version 已排序。
-    let _ = entry_path;
+    // 文件集无序，落库侧 content_version 已按路径排序，与抓取顺序无关。
     tracing::debug!(files = files.len(), total_bytes, "镜像文件集构建完成");
     Ok(files)
 }

@@ -11,6 +11,7 @@ use crate::store::version_meta::VersionRecord;
 use crate::versioning::next_version_seq;
 
 use super::SnapshotResult;
+use super::now_unix;
 
 /// 落库选项（M2 接线 D-09 定案 3 的报错消费分支）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -37,10 +38,11 @@ pub fn commit_snapshot(
         BookRepo::init(repo_root)?
     };
 
-    // 文件集 → (site/<rel>, bytes)；路径排序保证 tree 构建输入稳定。
-    let mut entries: Vec<(std::path::PathBuf, Vec<u8>)> = files
+    // 文件集 → (site/<rel>, &[u8])；借用字节不复制（镜像上限 128 MiB，深拷贝
+    // 会翻倍峰值内存）；路径排序保证 tree 构建输入稳定。
+    let mut entries: Vec<(std::path::PathBuf, &[u8])> = files
         .iter()
-        .map(|(rel, bytes)| (Path::new("site").join(rel), bytes.clone()))
+        .map(|(rel, bytes)| (Path::new("site").join(rel), bytes.as_slice()))
         .collect();
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -48,7 +50,7 @@ pub fn commit_snapshot(
 
     // D-08 变更检测前置：先 stage tree 与上个 commit 的 tree 比对
     // （autocrlf=false 下字节身份等价），相同则跳过空提交，不写 commit。
-    let tree = repo.stage_tree(&entries)?;
+    let tree = repo.stage_tree(entries)?;
     if let Some(parent) = parent
         && repo.tree_of(parent)? == tree
     {
@@ -117,13 +119,6 @@ pub fn commit_snapshot(
         tag_seq: Some(seq),
         meta,
     })
-}
-
-fn now_unix() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 /// 落库后保存版本记录（TOC 在 source 侧构建完成后的补写入口）。

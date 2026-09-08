@@ -12,6 +12,7 @@ use crate::model::toc::TocEntry;
 use crate::render::{self, RenderedChapter};
 use crate::services::AppContext;
 use crate::services::commands::CommandQueue;
+use crate::services::now_unix;
 use crate::services::snapshot_pipeline::{SnapshotOptions, commit_snapshot, save_version_record};
 use crate::source::static_site::StaticSiteSource;
 use crate::store::BookStore;
@@ -208,8 +209,8 @@ impl AppService {
             .get(book_id)
             .cloned();
 
-        let ctx = self.ctx.clone();
-        let (toc, html, anchor, ratio) = Self::locate_and_render(&ctx, &book, position.as_ref())?;
+        let (toc, html, anchor, ratio) =
+            Self::locate_and_render(&self.ctx, &book, position.as_ref())?;
 
         Ok(OpenReading {
             book,
@@ -365,13 +366,6 @@ impl AppService {
     pub fn command_queue(&self) -> &CommandQueue {
         &self.queue
     }
-}
-
-fn now_unix() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

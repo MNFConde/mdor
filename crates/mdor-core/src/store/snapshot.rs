@@ -82,15 +82,18 @@ impl BookRepo {
         Ok(())
     }
 
-    /// 将文件集合写入对象库并构建 tree（不 commit）。
+    /// 将文件集合写入对象库并构建 tree（不 commit，不复制字节）。
     ///
     /// D-08 变更检测前置：调用方先比对该 tree 与上个 commit 的 tree，
     /// 相同则跳过空提交，不同再以 [`Self::commit_tree`] 落 commit。
-    pub fn stage_tree(&self, files: &[(PathBuf, Vec<u8>)]) -> Result<ObjectId> {
-        let mut file_ids = Vec::with_capacity(files.len());
+    pub fn stage_tree<'a>(
+        &self,
+        files: impl IntoIterator<Item = (PathBuf, &'a [u8])>,
+    ) -> Result<ObjectId> {
+        let mut file_ids = Vec::new();
         for (path, bytes) in files {
             let id = self.repo.write_blob(bytes)?;
-            file_ids.push((path.clone(), id.detach()));
+            file_ids.push((path, id.detach()));
         }
         build_tree(&self.repo, &file_ids)
     }
@@ -133,7 +136,7 @@ impl BookRepo {
         message: &str,
         parents: Vec<ObjectId>,
     ) -> Result<ObjectId> {
-        let tree = self.stage_tree(files)?;
+        let tree = self.stage_tree(files.iter().map(|(p, b)| (p.clone(), b.as_slice())))?;
         let id = self.commit_tree(tree, message, parents)?;
         // 物化工作区：workdir 恒等于当前版本内容（§9，本地 http 服务直读）。
         self.checkout(id)?;

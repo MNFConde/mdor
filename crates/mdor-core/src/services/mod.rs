@@ -37,3 +37,11 @@ pub struct AppContext {
     /// 本地资源分发端口（app 层 tiny_http 服务实际绑定端口；`0` = 未起服，[`DEFAULT_RESOURCE_PORT`]）。
     pub port: u16,
 }
+
+/// 当前 unix 秒（时钟异常兜底 0；仅元数据时间戳用途，非安全敏感）。
+pub(crate) fn now_unix() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
